@@ -1,0 +1,17 @@
+{
+  "name": "thelia/json-lines-importer-module",
+  "description": "JsonLinesImporter module for Thelia — Import products from JSONL file.",
+  "license": "GPL-3.0-or-later",
+  "type": "thelia-module",
+  "require": {
+    "thelia/installer": "~1.1"
+  },
+  "extra": {
+    "installer-name": "JsonLinesImporter"
+  },
+  "config": {
+    "allow-plugins": {
+      "thelia/installer": true
+    }
+  }
+}
