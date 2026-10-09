@@ -214,10 +214,10 @@ class ImportController extends BaseAdminController
 
         $found = $inventory->build($import);
         $selectedKeys = array_values(array_intersect(array_keys($found['keys']), (array) $request->request->all('keys')));
-        $selectedLocales = array_values(array_filter(
-            (array) $request->request->all('locales'),
-            static fn (string $locale): bool => $shopContext->isKnownLocale($locale),
-        ));
+        // Only the locales of the i18n blocks have a box: a locale without box (the default one, which
+        // the keys at the root target) stays selected.
+        $unticked = array_diff(array_keys($found['locales']), (array) $request->request->all('locales'));
+        $selectedLocales = array_values(array_diff($shopContext->knownLocales(), $unticked));
         $fallback = $request->request->get('fallback_category_id');
 
         $this->saveParameters($import, [

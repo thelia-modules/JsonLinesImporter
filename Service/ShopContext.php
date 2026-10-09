@@ -37,6 +37,12 @@ final class ShopContext
     }
 
     /** @return list<string> */
+    public function knownLocales(): array
+    {
+        return array_keys($this->locales());
+    }
+
+    /** @return list<string> */
     public function activeLocales(): array
     {
         return array_keys(array_filter($this->locales()));

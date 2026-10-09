@@ -10,6 +10,7 @@ use JsonLinesImporter\Enum\LineAction;
 use JsonLinesImporter\Enum\LineResult;
 use JsonLinesImporter\Enum\RunPhase;
 use JsonLinesImporter\Exception\ImportException;
+use JsonLinesImporter\JsonLinesImporter;
 use JsonLinesImporter\Model\JsonlImport;
 use JsonLinesImporter\Model\JsonlImportLine;
 use JsonLinesImporter\Model\JsonlImportLineQuery;
@@ -49,10 +50,18 @@ final readonly class ImportRunner
     ) {
     }
 
+    /**
+     * End of a batch: 30 seconds at most, less when max_execution_time is lower, or when the module
+     * configuration value `batch_seconds` asks for shorter batches.
+     */
     public static function batchDeadline(): float
     {
+        $seconds = max(1, min(self::MAX_BATCH_SECONDS, (int) JsonLinesImporter::getConfigValue('batch_seconds', self::MAX_BATCH_SECONDS)));
         $limit = (int) \ini_get('max_execution_time');
-        $seconds = $limit > 0 ? min(self::MAX_BATCH_SECONDS, max(5, $limit - 10)) : self::MAX_BATCH_SECONDS;
+
+        if ($limit > 0) {
+            $seconds = min($seconds, max(5, $limit - 10));
+        }
 
         return microtime(true) + $seconds;
     }
