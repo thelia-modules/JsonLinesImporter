@@ -31,7 +31,8 @@ The activation creates four tables: `jsonl_import`, `jsonl_import_line`, `jsonl_
 - The product title is always written on creation (the reference when the line has none), and on an existing product only when its box is ticked at step 2 (unticked by default).
 - Variants are matched by their `ref`: a matched sale element keeps its id, a sale element missing from the file is hidden, never deleted.
 - Images and documents are matched by their source, remembered by the module: a known source is not downloaded again, and only the files the module imported are removed when they leave the file.
-- Videos go to the video blocks of the product group (Thelia Blocks) or to a feature chosen at step 3 (one YouTube address per product).
+- Media files are downloaded from public addresses only (private, loopback and link-local addresses are refused, redirections included), read from the server only inside the directory declared at step 3, and stored with the extension of their detected type (JPEG, PNG, GIF, WebP, PDF), never the one of their source name.
+- Videos go to the video blocks of the product group (Thelia Blocks) or to a feature chosen at step 3 (one YouTube address per product). A list whose videos are all invalid leaves the current videos in place.
 - `url` is the old address of the page: it becomes a 301 redirection to the current URL of the product, stored decoded, with and without its trailing slash.
 - Titles of tax rules, categories, brands, features and attributes are mapped at step 3 (associate, create hidden, or ignore); the choices are memorized for the next imports.
 
