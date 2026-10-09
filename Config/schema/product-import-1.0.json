@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:thelia:json-lines-importer:product-import:1.0",
+  "title": "Objet produit d'une ligne JSONL d'import Thelia",
+  "description": "Une ligne du JSONL = un objet produit. Prix en HT. Collections : tableau = remplacement complet, null = vidée, clé absente = inchangée.",
+  "type": "object",
+  "required": ["ref"],
+  "additionalProperties": false,
+  "properties": {
+    "ref": { "$ref": "#/$defs/reference", "description": "product.ref, clé d'identité (upsert)." },
+    "visible": { "type": "boolean", "default": false },
+    "virtual": { "type": "boolean", "default": false },
+    "position": { "type": ["integer", "null"], "default": 0 },
+
+    "title": { "$ref": "#/$defs/nullableString" },
+    "chapo": { "$ref": "#/$defs/nullableString" },
+    "description": { "$ref": "#/$defs/nullableString", "description": "HTML accepté." },
+    "postscriptum": { "$ref": "#/$defs/nullableString" },
+    "meta_title": { "$ref": "#/$defs/nullableString" },
+    "meta_description": { "$ref": "#/$defs/nullableString" },
+    "meta_keywords": { "$ref": "#/$defs/nullableString" },
+    "url": { "$ref": "#/$defs/nullableString", "description": "URL source, alimente rewriting_url (redirection 301)." },
+    "i18n": {
+      "$ref": "#/$defs/i18nBlock",
+      "description": "Contenu traduisible par locale ; prioritaire sur les mêmes clés à la racine.",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z]{2}_[A-Z]{2}$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": { "$ref": "#/$defs/nullableString" },
+            "chapo": { "$ref": "#/$defs/nullableString" },
+            "description": { "$ref": "#/$defs/nullableString" },
+            "postscriptum": { "$ref": "#/$defs/nullableString" },
+            "meta_title": { "$ref": "#/$defs/nullableString" },
+            "meta_description": { "$ref": "#/$defs/nullableString" },
+            "meta_keywords": { "$ref": "#/$defs/nullableString" },
+            "url": { "$ref": "#/$defs/nullableString" }
+          }
+        }
+      }
+    },
+
+    "ean_code": { "$ref": "#/$defs/nullableString" },
+    "quantity": { "type": "number", "default": 0 },
+    "weight": { "type": "number", "minimum": 0, "default": 0 },
+    "newness": { "type": "boolean", "default": false },
+    "promo": { "type": "boolean", "default": false },
+    "price": { "$ref": "#/$defs/amount" },
+    "promo_price": { "$ref": "#/$defs/amount" },
+    "prices": { "$ref": "#/$defs/prices" },
+
+    "tax_rule": {
+      "type": ["object", "null"],
+      "description": "Absente : règle de taxes par défaut de la boutique.",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "$ref": "#/$defs/label" },
+        "rate": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "categories": {
+      "type": ["array", "null"],
+      "description": "Sans default:true, la première catégorie est la catégorie par défaut.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title"],
+        "properties": {
+          "title": { "$ref": "#/$defs/label" },
+          "default": { "type": "boolean" }
+        }
+      },
+      "not": { "$ref": "#/$defs/severalDefaults" }
+    },
+
+    "brand": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "$ref": "#/$defs/label" }
+      }
+    },
+
+    "features": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature", "value"],
+        "properties": {
+          "feature": {
+            "type": "object",
+            "additionalProperties": false,
+            "anyOf": [{ "required": ["title"] }, { "required": ["i18n"] }],
+            "properties": {
+              "title": { "$ref": "#/$defs/label" },
+              "i18n": { "$ref": "#/$defs/titleI18n" }
+            }
+          },
+          "value": {
+            "type": "object",
+            "additionalProperties": false,
+            "anyOf": [{ "required": ["title"] }, { "required": ["i18n"] }],
+            "properties": {
+              "title": { "$ref": "#/$defs/label" },
+              "i18n": { "$ref": "#/$defs/titleI18n" },
+              "free": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      }
+    },
+
+    "variants": {
+      "type": ["array", "null"],
+      "items": { "$ref": "#/$defs/variant" },
+      "not": { "$ref": "#/$defs/severalDefaults" }
+    },
+
+    "images": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source"],
+        "properties": {
+          "_key": { "type": "string", "minLength": 1, "description": "Clé technique, référencée par variants[].images." },
+          "source": { "$ref": "#/$defs/source" },
+          "visible": { "type": "boolean", "default": true },
+          "position": { "type": ["integer", "null"] },
+          "title": { "$ref": "#/$defs/nullableString" },
+          "chapo": { "$ref": "#/$defs/nullableString" },
+          "description": { "$ref": "#/$defs/nullableString" },
+          "postscriptum": { "$ref": "#/$defs/nullableString" },
+          "i18n": { "$ref": "#/$defs/mediaI18n" }
+        }
+      }
+    },
+
+    "documents": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source"],
+        "properties": {
+          "source": { "$ref": "#/$defs/source" },
+          "visible": { "type": "boolean", "default": true },
+          "position": { "type": ["integer", "null"] },
+          "title": { "$ref": "#/$defs/nullableString" },
+          "chapo": { "$ref": "#/$defs/nullableString" },
+          "description": { "$ref": "#/$defs/nullableString" },
+          "postscriptum": { "$ref": "#/$defs/nullableString" },
+          "i18n": { "$ref": "#/$defs/mediaI18n" }
+        }
+      }
+    },
+
+    "videos": {
+      "type": ["array", "null"],
+      "description": "Rattachées à la fiche produit via le module Thelia Blocks.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source"],
+        "properties": {
+          "source": { "$ref": "#/$defs/source" },
+          "position": { "type": ["integer", "null"] },
+          "title": { "$ref": "#/$defs/nullableString" },
+          "group": { "$ref": "#/$defs/nullableString", "description": "Groupe Thelia Blocks ; à défaut, le titre de la vidéo." },
+          "i18n": {
+            "$ref": "#/$defs/i18nBlock",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^[a-z]{2}_[A-Z]{2}$": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "title": { "$ref": "#/$defs/nullableString" },
+                  "group": { "$ref": "#/$defs/nullableString" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "accessories": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref"],
+        "properties": {
+          "ref": { "$ref": "#/$defs/reference" },
+          "position": { "type": ["integer", "null"] }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "reference": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "label": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "nullableString": { "type": ["string", "null"] },
+    "source": { "type": "string", "minLength": 1, "description": "URL ou chemin du fichier." },
+    "amount": { "type": "number", "minimum": 0, "description": "Montant HT." },
+
+    "i18nBlock": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z]{2}_[A-Z]{2}$" }
+    },
+
+    "titleI18n": {
+      "$ref": "#/$defs/i18nBlock",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z]{2}_[A-Z]{2}$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title"],
+          "properties": { "title": { "$ref": "#/$defs/label" } }
+        }
+      }
+    },
+
+    "mediaI18n": {
+      "$ref": "#/$defs/i18nBlock",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z]{2}_[A-Z]{2}$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": { "$ref": "#/$defs/nullableString" },
+            "chapo": { "$ref": "#/$defs/nullableString" },
+            "description": { "$ref": "#/$defs/nullableString" },
+            "postscriptum": { "$ref": "#/$defs/nullableString" }
+          }
+        }
+      }
+    },
+
+    "severalDefaults": {
+      "type": "array",
+      "contains": { "type": "object", "required": ["default"], "properties": { "default": { "const": true } } },
+      "minContains": 2
+    },
+
+    "prices": {
+      "type": ["array", "null"],
+      "description": "Prix par devise. from_default_currency vaut true par défaut, false si price est présent (price prioritaire). Sans price, promo_price est ignoré.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["currency"],
+        "if": { "required": ["from_default_currency"], "properties": { "from_default_currency": { "const": false } } },
+        "then": { "required": ["price"] },
+        "properties": {
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$", "description": "Code ISO 4217 existant dans currency.code." },
+          "price": { "$ref": "#/$defs/amount" },
+          "promo_price": { "$ref": "#/$defs/amount" },
+          "from_default_currency": { "type": "boolean", "default": true }
+        }
+      }
+    },
+
+    "attributeLabel": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [{ "required": ["title"] }, { "required": ["i18n"] }],
+      "properties": {
+        "title": { "$ref": "#/$defs/label" },
+        "i18n": { "$ref": "#/$defs/titleI18n" }
+      }
+    },
+
+    "variant": {
+      "type": "object",
+      "description": "PSE. Les champs PSE absents reprennent ceux de la racine du produit.",
+      "additionalProperties": false,
+      "properties": {
+        "ref": { "$ref": "#/$defs/reference" },
+        "ean_code": { "$ref": "#/$defs/nullableString" },
+        "default": { "type": "boolean", "default": false },
+        "visible": { "type": "boolean", "default": true },
+        "quantity": { "type": "number", "default": 0 },
+        "weight": { "type": "number", "minimum": 0, "default": 0 },
+        "newness": { "type": "boolean", "default": false },
+        "promo": { "type": "boolean", "default": false },
+        "price": { "$ref": "#/$defs/amount" },
+        "promo_price": { "$ref": "#/$defs/amount" },
+        "prices": { "$ref": "#/$defs/prices" },
+        "combination": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attribute", "value"],
+            "properties": {
+              "attribute": { "$ref": "#/$defs/attributeLabel" },
+              "value": { "$ref": "#/$defs/attributeLabel" }
+            }
+          }
+        },
+        "images": {
+          "type": ["array", "null"],
+          "description": "Valeurs de images[]._key du produit.",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
