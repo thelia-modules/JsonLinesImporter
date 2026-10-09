@@ -1,0 +1,8 @@
+{"ref": "BROKEN-1", "visible": true,
+{"visible": true}
+{"ref": "TWO-DEFAULTS", "variants": [{"ref": "TD-1", "default": true}, {"ref": "TD-2", "default": true}]}
+{"ref": "UNKNOWN-KEY", "images": [{"_key": "a", "source": "https://example.com/a.jpg"}], "variants": [{"ref": "UK-1", "images": ["b"]}]}
+{"ref": "NO-VARIANT-REF", "variants": [{}, {}]}
+{"ref": "DUPLICATE"}
+{"ref": "DUPLICATE"}
+{"ref": "UNKNOWN-KEY-AT-ROOT", "colour": "red"}
