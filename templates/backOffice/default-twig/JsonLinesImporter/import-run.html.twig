@@ -1,0 +1,51 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'Import'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-run{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Import'|trans({}, d) ~ ' : ' ~ import.originalName } %}{% endembed %}
+
+        {% if import.status == 'done' %}
+            <div class="alert alert-success">{{ 'The import is over.'|trans({}, d) }}
+                <a href="{{ path('admin_json_lines_importer_report', { importId: import.id }) }}">{{ 'See the report'|trans({}, d) }}</a>
+            </div>
+        {% elseif import.status == 'running' %}
+            <div class="card mb-4" data-controller="jli-batch"
+                 data-jli-batch-url-value="{{ path('admin_json_lines_importer_run_batch', { importId: import.id }) }}"
+                 data-jli-batch-token-value="{{ assignToken() }}"
+                 data-jli-batch-done-url-value="{{ path('admin_json_lines_importer_report', { importId: import.id }) }}">
+                <div class="card-body">
+                    <div class="progress mb-3" role="progressbar" aria-label="{{ 'Import'|trans({}, d) }}" style="height: 1.5rem">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%" data-jli-batch-target="bar">0 %</div>
+                    </div>
+                    <p class="mb-2">{{ 'Product being imported'|trans({}, d) }} : <strong data-jli-batch-target="ref">{{ import.currentRef|default('-') }}</strong></p>
+                    <p class="small mb-3">
+                        {{ 'Created'|trans({}, d) }} : <strong data-jli-batch-target="created">{{ import.createdCount }}</strong>,
+                        {{ 'Updated'|trans({}, d) }} : <strong data-jli-batch-target="updated">{{ import.updatedCount }}</strong>,
+                        {{ 'Errors'|trans({}, d) }} : <strong data-jli-batch-target="errors">{{ import.errorCount }}</strong>
+                        ({{ '%total% product(s) to import'|trans({ '%total%': total }, d) }})
+                    </p>
+                    <div class="alert alert-danger d-none" data-jli-batch-target="error"></div>
+                    <form method="post" action="{{ path('admin_json_lines_importer_run_pause', { importId: import.id }) }}" data-action="submit->jli-batch#stop">
+                        <input type="hidden" name="_token" value="{{ assignToken() }}">
+                        <button type="submit" class="btn btn-outline-secondary" data-testid="jli-pause">
+                            <i class="bi bi-pause-fill" aria-hidden="true"></i> {{ 'Pause'|trans({}, d) }}
+                        </button>
+                    </form>
+                    <p class="small text-body-secondary mt-3 mb-0">{{ 'Closing this page pauses the import: it resumes from the list of imports, at the next line.'|trans({}, d) }}</p>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">{{ 'The import is paused at line %line%.'|trans({ '%line%': import.cursorLine }, d) }}</div>
+            <form method="post" action="{{ path('admin_json_lines_importer_run_start', { importId: import.id }) }}">
+                <input type="hidden" name="_token" value="{{ assignToken() }}">
+                <button type="submit" class="btn btn-primary" data-testid="jli-resume">
+                    <i class="bi bi-play-fill" aria-hidden="true"></i> {{ 'Resume the import'|trans({}, d) }}
+                </button>
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}

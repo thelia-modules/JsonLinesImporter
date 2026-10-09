@@ -1,0 +1,73 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'Import report'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-report{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Import report'|trans({}, d) ~ ' : ' ~ import.originalName } %}
+            {% block actions %}
+                <a href="{{ path('admin_json_lines_importer_export_parameters', { importId: import.id }) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-download" aria-hidden="true"></i> {{ 'Export the parameters'|trans({}, d) }}
+                </a>
+            {% endblock %}
+        {% endembed %}
+
+        {% if import.status != 'done' %}
+            <div class="alert alert-warning">{{ 'The import is not over.'|trans({}, d) }} <a href="{{ path('admin_json_lines_importer_run', { importId: import.id }) }}">{{ 'Back to the import'|trans({}, d) }}</a></div>
+        {% endif %}
+
+        <div class="row g-3 mb-4" data-testid="jli-report-summary">
+            {% for label, value in {
+                'Processed': import.createdCount + import.updatedCount + import.errorCount,
+                'Created': import.createdCount,
+                'Updated': import.updatedCount,
+                'Errors': import.errorCount,
+                'Excluded': import.excludedCount,
+            } %}
+                <div class="col-6 col-md">
+                    <div class="card card-body">
+                        <div class="small text-body-secondary">{{ label|trans({}, d) }}</div>
+                        <div class="fs-4 fw-semibold {{ label == 'Errors' and value > 0 ? 'text-danger' }}" data-testid="jli-report-{{ label|lower }}">{{ value }}</div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" data-testid="jli-report-lines">
+                    <thead>
+                    <tr>
+                        <th scope="col">{{ 'Line'|trans({}, d) }}</th>
+                        <th scope="col">{{ 'Reference'|trans({}, d) }}</th>
+                        <th scope="col">{{ 'Result'|trans({}, d) }}</th>
+                        <th scope="col">{{ 'Messages'|trans({}, d) }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for line in lines %}
+                        {% set result = line.result %}
+                        <tr>
+                            <td>{{ line.lineNumber }}</td>
+                            <td class="fw-semibold">{{ line.ref }}</td>
+                            <td>
+                                {% if result == 'created' %}<span class="badge text-bg-success">{{ 'Created'|trans({}, d) }}</span>
+                                {% elseif result == 'updated' %}<span class="badge text-bg-primary">{{ 'Updated'|trans({}, d) }}</span>
+                                {% elseif result == 'error' %}<span class="badge text-bg-danger">{{ 'Error'|trans({}, d) }}</span>
+                                {% elseif result == 'excluded' %}<span class="badge text-bg-secondary">{{ 'Excluded'|trans({}, d) }}</span>
+                                {% else %}<span class="badge text-bg-light border">{{ 'Pending'|trans({}, d) }}</span>{% endif %}
+                            </td>
+                            <td class="small text-break">
+                                {% for error in line.errorList %}<div class="text-danger">{{ error }}</div>{% endfor %}
+                                {% for warning in line.warningList %}<div class="text-warning-emphasis">{{ warning }}</div>{% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}

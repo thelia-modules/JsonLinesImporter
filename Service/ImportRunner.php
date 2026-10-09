@@ -78,7 +78,7 @@ final readonly class ImportRunner
         $other = $this->runningImport((int) $import->getId());
 
         if (null !== $other) {
-            throw new ImportException(\sprintf('The import #%d is running: wait for its end or pause it.', $other->getId()));
+            throw new ImportException('The import #%id% is running: wait for its end or pause it.', ['%id%' => (int) $other->getId()]);
         }
 
         $this->pauseStaleImports((int) $import->getId());

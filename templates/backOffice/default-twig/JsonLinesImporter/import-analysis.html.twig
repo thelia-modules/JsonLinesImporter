@@ -1,0 +1,67 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'File analysis'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-analysis{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'File analysis'|trans({}, d) ~ ' : ' ~ import.originalName } %}{% endembed %}
+
+        {% if import.status == 'analysing' %}
+            <div class="card mb-4" data-controller="jli-batch"
+                 data-jli-batch-url-value="{{ path('admin_json_lines_importer_analysis_batch', { importId: import.id }) }}"
+                 data-jli-batch-token-value="{{ assignToken() }}"
+                 data-jli-batch-done-url-value="{{ path('admin_json_lines_importer_analysis', { importId: import.id }) }}">
+                <div class="card-body">
+                    <p class="mb-2">{{ 'The file is read line by line.'|trans({}, d) }}</p>
+                    <div class="progress mb-2" role="progressbar" aria-label="{{ 'Analysis'|trans({}, d) }}">
+                        <div class="progress-bar" style="width: 0%" data-jli-batch-target="bar">0 %</div>
+                    </div>
+                    <p class="small mb-0">
+                        {{ 'Lines read'|trans({}, d) }} : <strong data-jli-batch-target="lines">{{ import.lineCount }}</strong>,
+                        {{ 'valid'|trans({}, d) }} : <strong data-jli-batch-target="valid">{{ import.validCount }}</strong>,
+                        {{ 'invalid'|trans({}, d) }} : <strong data-jli-batch-target="invalid">{{ import.invalidCount }}</strong>
+                    </p>
+                    <div class="alert alert-danger mt-3 d-none" data-jli-batch-target="error"></div>
+                </div>
+            </div>
+        {% else %}
+            <div class="row g-3 mb-4" data-testid="jli-analysis-summary">
+                <div class="col-sm-4"><div class="card card-body"><div class="small text-body-secondary">{{ 'Lines read'|trans({}, d) }}</div><div class="fs-4 fw-semibold">{{ import.lineCount }}</div></div></div>
+                <div class="col-sm-4"><div class="card card-body"><div class="small text-body-secondary">{{ 'Valid lines'|trans({}, d) }}</div><div class="fs-4 fw-semibold text-success" data-testid="jli-valid-count">{{ import.validCount }}</div></div></div>
+                <div class="col-sm-4"><div class="card card-body"><div class="small text-body-secondary">{{ 'Invalid lines'|trans({}, d) }}</div><div class="fs-4 fw-semibold {{ import.invalidCount ? 'text-danger' : '' }}" data-testid="jli-invalid-count">{{ import.invalidCount }}</div></div></div>
+            </div>
+
+            {% if invalid_lines|length > 0 %}
+                <div class="card mb-4">
+                    <div class="card-header fw-semibold">{{ 'Invalid lines, left out of the import'|trans({}, d) }}</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0" data-testid="jli-invalid-lines">
+                            <thead><tr><th scope="col">{{ 'Line'|trans({}, d) }}</th><th scope="col">{{ 'Reference'|trans({}, d) }}</th><th scope="col">{{ 'Errors'|trans({}, d) }}</th></tr></thead>
+                            <tbody>
+                            {% for line in invalid_lines %}
+                                <tr>
+                                    <td>{{ line.lineNumber }}</td>
+                                    <td>{{ line.ref|default('-') }}</td>
+                                    <td class="text-break"><ul class="mb-0 ps-3">{% for error in line.errorList %}<li><code>{{ error }}</code></li>{% endfor %}</ul></td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if import.validCount > 0 %}
+                {% if import.status == 'analysed' %}
+                    <a href="{{ path('admin_json_lines_importer_data', { importId: import.id }) }}" class="btn btn-primary" data-testid="jli-next">
+                        {{ 'Choose the data to import'|trans({}, d) }} <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-danger">{{ 'No line of the file is valid: the import stops here.'|trans({}, d) }}</div>
+            {% endif %}
+        {% endif %}
+    </div>
+{% endblock %}

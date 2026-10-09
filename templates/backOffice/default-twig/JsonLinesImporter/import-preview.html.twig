@@ -1,0 +1,69 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'Preview'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-preview{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Preview'|trans({}, d) ~ ' (' ~ '%count% product(s)'|trans({ '%count%': total }, d) ~ ')' } %}{% endembed %}
+
+        <p class="text-body-secondary">{{ 'Values of the file that will be written, mappings applied. Untick a product to leave it out of the import.'|trans({}, d) }}</p>
+
+        <form method="post" action="{{ path('admin_json_lines_importer_preview_save', { importId: import.id }) }}" data-testid="jli-preview-form">
+            <input type="hidden" name="_token" value="{{ assignToken() }}">
+
+            <div class="accordion mb-3" id="jli-preview-lines">
+                {% for line in lines %}
+                    {% set row = line.row %}
+                    <input type="hidden" name="shown[]" value="{{ row.lineNumber }}">
+                    <div class="accordion-item" data-testid="jli-preview-line" data-ref="{{ row.ref }}">
+                        <div class="accordion-header d-flex align-items-center gap-2 px-3">
+                            <input class="form-check-input mt-0" type="checkbox" name="included[]" value="{{ row.lineNumber }}"
+                                   aria-label="{{ 'Import %ref%'|trans({ '%ref%': row.ref }, d) }}"
+                                   {{ line.excluded or line.forced_exclusion ? '' : 'checked' }} {{ line.forced_exclusion ? 'disabled' }}>
+                            <button class="accordion-button collapsed px-1" type="button" data-bs-toggle="collapse" data-bs-target="#jli-line-{{ row.lineNumber }}" aria-expanded="false">
+                                <span class="fw-semibold me-2">{{ row.ref }}</span>
+                                <span class="text-body-secondary me-2">{{ line.title }}</span>
+                                {% if row.action == 'create' %}
+                                    <span class="badge text-bg-success me-2">{{ 'Creation'|trans({}, d) }}</span>
+                                {% else %}
+                                    <span class="badge text-bg-primary me-2">{{ 'Update'|trans({}, d) }}</span>
+                                {% endif %}
+                                {% if line.forced_exclusion %}<span class="badge text-bg-secondary me-2">{{ 'excluded by the options'|trans({}, d) }}</span>{% endif %}
+                                {% if line.warnings|length %}<span class="badge text-bg-warning">{{ '%count% warning(s)'|trans({ '%count%': line.warnings|length }, d) }}</span>{% endif %}
+                            </button>
+                        </div>
+                        <div id="jli-line-{{ row.lineNumber }}" class="accordion-collapse collapse" data-bs-parent="#jli-preview-lines">
+                            <div class="accordion-body small">
+                                {% for warning in line.warnings %}<div class="alert alert-warning py-1 px-2 mb-2">{{ warning }}</div>{% endfor %}
+                                <dl class="row mb-0">
+                                    {% for group, values in line.groups %}
+                                        <dt class="col-sm-3">{{ group|trans({}, d) }}</dt>
+                                        <dd class="col-sm-9"><ul class="list-unstyled mb-0">{% for value in values %}<li>{{ value }}</li>{% endfor %}</ul></dd>
+                                    {% endfor %}
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            {% if page_count > 1 %}
+                <nav aria-label="{{ 'Pages'|trans({}, d) }}" class="mb-3">
+                    <ul class="pagination pagination-sm">
+                        {% for number in 1..page_count %}
+                            <li class="page-item {{ number == page ? 'active' }}">
+                                <button type="submit" class="page-link" name="target" value="page:{{ number }}">{{ number }}</button>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary" name="target" value="run" data-testid="jli-run">
+                <i class="bi bi-play-fill" aria-hidden="true"></i> {{ 'Run the import'|trans({}, d) }}
+            </button>
+        </form>
+    </div>
+{% endblock %}

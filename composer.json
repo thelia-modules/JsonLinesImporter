@@ -1,11 +1,11 @@
 {
   "name": "thelia/json-lines-importer-module",
-  "description": "JsonLinesImporter module for Thelia 3 — Import products from a JSON Lines file through a back-office wizard.",
+  "description": "JsonLinesImporter module for Thelia 3: import products from a JSON Lines file through a back-office wizard.",
   "license": "GPL-3.0-or-later",
   "type": "thelia-module",
   "authors": [
     {
-      "name": "Samuel Diakité – OpenStudio",
+      "name": "Samuel Diakité, OpenStudio",
       "email": "sdiakite@openstudio.fr",
       "role": "Developer"
     }

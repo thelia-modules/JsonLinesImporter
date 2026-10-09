@@ -36,7 +36,7 @@ final readonly class ImportManager
         }
 
         if (filesize($path) > self::maxFileBytes()) {
-            throw new ImportException(\sprintf('The file is larger than %s.', self::humanSize(self::maxFileBytes())));
+            throw new ImportException('The file is larger than %size%.', ['%size%' => self::humanSize(self::maxFileBytes())]);
         }
 
         $directory = JsonLinesImporter::getStorageDirectory();

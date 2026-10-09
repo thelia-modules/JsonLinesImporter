@@ -1,0 +1,113 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'Other parameters'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-options{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Parameters of the import'|trans({}, d) } %}
+            {% block actions %}
+                <a href="{{ path('admin_json_lines_importer_export_parameters', { importId: import.id }) }}" class="btn btn-sm btn-outline-secondary" data-testid="jli-export-parameters">
+                    <i class="bi bi-download" aria-hidden="true"></i> {{ 'Export the parameters'|trans({}, d) }}
+                </a>
+            {% endblock %}
+        {% endembed %}
+
+        {% include 'JsonLinesImporter/_parameters_nav.html.twig' with { current: 'options' } %}
+
+        <form method="post" action="{{ path('admin_json_lines_importer_options_save', { importId: import.id }) }}" data-testid="jli-options-form">
+            <input type="hidden" name="_token" value="{{ assignToken() }}">
+
+            <div class="card mb-3">
+                <div class="card-header fw-semibold">{{ 'Products'|trans({}, d) }}</div>
+                <div class="card-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" name="create_products" value="1" id="jli-create" {{ parameters.createProducts ? 'checked' }}>
+                        <label class="form-check-label" for="jli-create">{{ 'Create the products missing from the shop'|trans({}, d) }}</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" name="update_products" value="1" id="jli-update" {{ parameters.updateProducts ? 'checked' }}>
+                        <label class="form-check-label" for="jli-update">{{ 'Update the existing products'|trans({}, d) }}</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" name="default_visible" value="1" id="jli-visible" {{ parameters.defaultVisible ? 'checked' }}>
+                        <label class="form-check-label" for="jli-visible">{{ 'Created products are visible when the line has no "visible" key'|trans({}, d) }}</label>
+                    </div>
+                    <div class="mt-3" style="max-width: 32rem">
+                        <label class="form-label" for="jli-template">{{ 'Template of the created products'|trans({}, d) }}</label>
+                        <select class="form-select" id="jli-template" name="template_id">
+                            <option value="">{{ 'None'|trans({}, d) }}</option>
+                            {% for id, name in templates %}<option value="{{ id }}" {{ parameters.templateId == id ? 'selected' }}>{{ name }}</option>{% endfor %}
+                        </select>
+                        <div class="form-text">{{ 'The template of an existing product is never changed.'|trans({}, d) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if show_images_directory or show_documents_directory %}
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold">{{ 'Media given by a path on the server'|trans({}, d) }}</div>
+                    <div class="card-body">
+                        <p class="small text-body-secondary">{{ 'When the path of a file does not exist, its name is looked for in this directory. The files are copied, never moved.'|trans({}, d) }}</p>
+                        {% if show_images_directory %}
+                            <label class="form-label" for="jli-images-dir">{{ 'Directory of the images'|trans({}, d) }}</label>
+                            <input class="form-control mb-2" id="jli-images-dir" name="images_directory" value="{{ parameters.imagesDirectory }}" placeholder="/var/www/import/images">
+                        {% endif %}
+                        {% if show_documents_directory %}
+                            <label class="form-label" for="jli-documents-dir">{{ 'Directory of the documents'|trans({}, d) }}</label>
+                            <input class="form-control" id="jli-documents-dir" name="documents_directory" value="{{ parameters.documentsDirectory }}" placeholder="/var/www/import/documents">
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if show_videos %}
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold">{{ 'Videos'|trans({}, d) }}</div>
+                    <div class="card-body">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="video_destination" value="blocks" id="jli-video-blocks"
+                                   {{ parameters.videoDestination.value == 'blocks' ? 'checked' }} {{ blocks_available ? '' : 'disabled' }}>
+                            <label class="form-check-label" for="jli-video-blocks">
+                                {{ 'Video blocks (Thelia Blocks): only the video blocks of the product are rewritten'|trans({}, d) }}
+                                {% if not blocks_available %}<span class="badge text-bg-secondary">{{ 'module inactive'|trans({}, d) }}</span>{% endif %}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="video_destination" value="feature" id="jli-video-feature" {{ parameters.videoDestination.value == 'feature' ? 'checked' }}>
+                            <label class="form-check-label" for="jli-video-feature">{{ 'A feature of the product (one video per product, YouTube address)'|trans({}, d) }}</label>
+                        </div>
+                        <div class="mt-2 ms-4" style="max-width: 30rem">
+                            <label class="form-label visually-hidden" for="jli-video-feature-id">{{ 'Feature of the videos'|trans({}, d) }}</label>
+                            <select class="form-select" id="jli-video-feature-id" name="video_feature_id">
+                                <option value="">{{ 'Choose the feature'|trans({}, d) }}</option>
+                                {% for id, title in features %}<option value="{{ id }}" {{ parameters.videoFeatureId == id ? 'selected' }}>{{ title }} (#{{ id }})</option>{% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if show_html_images %}
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold">{{ 'Images of the HTML fields'|trans({}, d) }}</div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" name="copy_html_images" value="1" id="jli-html-images"
+                                   {{ parameters.copyHtmlImages ? 'checked' }} {{ library_available ? '' : 'disabled' }}>
+                            <label class="form-check-label" for="jli-html-images">
+                                {{ 'Copy the images of the descriptions hosted on another site into the media library'|trans({}, d) }}
+                                {% if not library_available %}<span class="badge text-bg-secondary">{{ 'module inactive'|trans({}, d) }}</span>{% endif %}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary" data-testid="jli-next">
+                {{ 'Next: preview'|trans({}, d) }} <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
+        </form>
+    </div>
+{% endblock %}
