@@ -48,10 +48,10 @@
         <foreign-key foreignTable="jsonl_import" name="fk_jsonl_import_line_import_id" onDelete="CASCADE" onUpdate="RESTRICT">
             <reference foreign="id" local="import_id" />
         </foreign-key>
-        <index name="idx_jsonl_import_line_import_number">
-            <index-column name="import_id" />
-            <index-column name="line_number" />
-        </index>
+        <unique name="uk_jsonl_import_line_import_number">
+            <unique-column name="import_id" />
+            <unique-column name="line_number" />
+        </unique>
         <index name="idx_jsonl_import_line_import_ref">
             <index-column name="import_id" />
             <index-column name="ref" />

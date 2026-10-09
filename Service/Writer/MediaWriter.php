@@ -186,15 +186,12 @@ final readonly class MediaWriter
     }
 
     /**
-     * Same naming as Thelia's FileManager: sanitized original name, then the id of the row.
+     * Same naming as Thelia's FileManager (sanitized original name, then the id of the row), with the
+     * extension of the detected type.
      */
     private static function fileName(FetchedFile $file, int $objectId): string
     {
-        $extension = $file->extension();
-        $baseName = pathinfo($file->originalName, \PATHINFO_FILENAME);
-        $name = strtolower((string) preg_replace('/[^a-zA-Z0-9-_\.]/', '', $baseName));
-
-        return ('' === $name ? 'file' : $name).'-'.$objectId.('' === $extension ? '' : '.'.$extension);
+        return $file->baseName().'-'.$objectId.'.'.$file->extension();
     }
 
     private function existingObject(MediaType $type, int $productId, string $source): ProductImage|ProductDocument|null

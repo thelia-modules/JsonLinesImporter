@@ -36,7 +36,8 @@ use Thelia\Model\ProductQuery;
  */
 final readonly class ImportRunner
 {
-    public const STALE_AFTER = 120;
+    // Longer than a line can take: its media are downloaded within 60 seconds each.
+    public const STALE_AFTER = 300;
 
     private const MAX_BATCH_SECONDS = 30;
 
@@ -84,6 +85,13 @@ final readonly class ImportRunner
      */
     public function start(JsonlImport $import): void
     {
+        $status = $import->getStatusEnum();
+        $resumable = \in_array($status, [ImportStatus::PAUSED, ImportStatus::RUNNING], true) && null !== $import->getPhase();
+
+        if (!$resumable && !(ImportStatus::ANALYSED === $status && null === $import->getPhase())) {
+            throw new ImportException('This import cannot be started: its analysis is not over, or it is already done.');
+        }
+
         $other = $this->runningImport((int) $import->getId());
 
         if (null !== $other) {
@@ -115,7 +123,7 @@ final readonly class ImportRunner
      */
     public function runBatch(JsonlImport $import, float $deadline): bool
     {
-        $lock = $this->lockFactory->createLock('jsonl-import-'.$import->getId(), self::MAX_BATCH_SECONDS * 4);
+        $lock = $this->lockFactory->createLock('jsonl-import-'.$import->getId(), self::STALE_AFTER);
 
         if (!$lock->acquire()) {
             return false;
@@ -153,7 +161,9 @@ final readonly class ImportRunner
                     return true;
                 }
 
-                $import->setCurrentRef($line->getRef());
+                // A line with media may be long: the lock and the activity date are renewed before it.
+                $lock->refresh();
+                $import->setCurrentRef($line->getRef())->setLastBatchAt(new \DateTime())->save();
 
                 if (RunPhase::LINES === $import->getPhaseEnum()) {
                     $this->importLine($import, $line, $parameters, $defaultLocale);

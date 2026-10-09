@@ -71,6 +71,14 @@ final readonly class VideoWriter
             $valid[] = [$video, $videoId];
         }
 
+        // A list whose videos are all invalid leaves the current videos in place: a mistyped address
+        // must not erase valid videos.
+        if ([] !== $videos && [] === $valid) {
+            $report->warn('No valid video in the line: the videos of the product are left unchanged');
+
+            return;
+        }
+
         if (VideoDestination::FEATURE === $parameters->videoDestination) {
             $this->writeFeature($product, $valid, $parameters->videoFeatureId, $line->videos->isNull(), $report, $con);
 
@@ -192,7 +200,7 @@ final readonly class VideoWriter
             foreach ($videos as [$video, $videoId]) {
                 $blocks[] = [
                     'id' => self::uuid(),
-                    'data' => ['url' => $video->source, 'videoId' => $videoId],
+                    'data' => ['url' => $this->youtubeId->watchUrl($videoId), 'videoId' => $videoId],
                     'parent' => null,
                     'title' => self::BLOCK_TITLE,
                     'type' => ['id' => self::BLOCK_TYPE],

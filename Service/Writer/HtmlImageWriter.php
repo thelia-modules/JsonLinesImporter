@@ -142,8 +142,7 @@ final readonly class HtmlImageWriter
             throw new \RuntimeException(\sprintf('The directory %s cannot be created.', $directory));
         }
 
-        $baseName = strtolower((string) preg_replace('/[^a-zA-Z0-9-_\.]/', '', $file->originalName));
-        $fileName = bin2hex(random_bytes(5)).'_'.('' === $baseName ? 'image.'.$file->extension() : $baseName);
+        $fileName = bin2hex(random_bytes(5)).'_'.$file->safeName();
 
         if (!copy($file->temporaryPath, $directory.$fileName)) {
             throw new \RuntimeException(\sprintf('The file %s cannot be written.', $fileName));
@@ -158,7 +157,7 @@ final readonly class HtmlImageWriter
             $image = new \TheliaLibrary\Model\LibraryImage();
             $image
                 ->setLocale($this->shopContext->defaultLocale())
-                ->setTitle(pathinfo($file->originalName, \PATHINFO_FILENAME))
+                ->setTitle($file->baseName())
                 ->setFileName($fileName);
 
             $dimensions = @getimagesize($directory.$fileName);

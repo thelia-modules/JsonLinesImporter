@@ -13,12 +13,29 @@ final readonly class FetchedFile
         public string $temporaryPath,
         public string $originalName,
         public string $mimeType,
+        /** derived from the detected MIME type, never from the source name */
+        public string $extension = '',
     ) {
     }
 
     public function extension(): string
     {
-        return strtolower(pathinfo($this->originalName, \PATHINFO_EXTENSION));
+        return $this->extension;
+    }
+
+    /**
+     * Name of the source without its extension, reduced to safe characters.
+     */
+    public function baseName(): string
+    {
+        $name = strtolower((string) preg_replace('/[^a-zA-Z0-9_-]/', '', pathinfo($this->originalName, \PATHINFO_FILENAME)));
+
+        return '' === $name ? 'file' : substr($name, 0, 100);
+    }
+
+    public function safeName(): string
+    {
+        return $this->baseName().'.'.$this->extension;
     }
 
     public function discard(): void

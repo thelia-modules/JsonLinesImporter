@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS `jsonl_import_line`
     `errors` TEXT,
     `warnings` TEXT,
     PRIMARY KEY (`id`),
-    INDEX `idx_jsonl_import_line_import_number` (`import_id`, `line_number`),
+    UNIQUE INDEX `uk_jsonl_import_line_import_number` (`import_id`, `line_number`),
     INDEX `idx_jsonl_import_line_import_ref` (`import_id`, `ref`),
     CONSTRAINT `fk_jsonl_import_line_import_id`
         FOREIGN KEY (`import_id`)

@@ -13,6 +13,8 @@ use JsonLinesImporter\Reader\JsonLinesReader;
 use JsonLinesImporter\Service\Writer\ProductWriter;
 use JsonLinesImporter\Validation\LineValidator;
 use Propel\Runtime\ActiveQuery\Criteria;
+use Propel\Runtime\Propel;
+use Symfony\Component\Lock\LockFactory;
 
 /**
  * Step 1: reads the file from where the previous batch stopped and stores every line with its verdict.
@@ -23,6 +25,7 @@ final readonly class AnalysisService
         private JsonLinesReader $reader,
         private LineValidator $validator,
         private ProductWriter $productWriter,
+        private LockFactory $lockFactory,
     ) {
     }
 
@@ -31,32 +34,56 @@ final readonly class AnalysisService
      */
     public function analyseBatch(JsonlImport $import, float $deadline): bool
     {
-        if (ImportStatus::ANALYSING !== $import->getStatusEnum()) {
+        // Two calls at once would read the same lines twice.
+        $lock = $this->lockFactory->createLock('jsonl-analysis-'.$import->getId(), 300);
+
+        if (!$lock->acquire()) {
+            return false;
+        }
+
+        try {
+            $import->reload();
+
+            if (ImportStatus::ANALYSING !== $import->getStatusEnum()) {
+                return true;
+            }
+
+            $importId = (int) $import->getId();
+            $lines = $this->reader->read($import->getStoredPath(), (int) $import->getAnalysisOffset(), (int) $import->getLineCount() + 1);
+            $con = Propel::getWriteConnection('TheliaMain');
+
+            foreach ($lines as $line) {
+                // The line and the offset of the next one are saved together: a batch cut in the
+                // middle resumes on the first line not stored, never on a stored one.
+                $con->beginTransaction();
+
+                try {
+                    if (!$line->isBlank()) {
+                        $this->analyseLine($import, $importId, $line->number, $line->content);
+                    }
+
+                    $import
+                        ->setAnalysisOffset($line->nextOffset)
+                        ->setLineCount($line->number)
+                        ->save($con);
+                    $con->commit();
+                } catch (\Throwable $exception) {
+                    $con->rollBack();
+
+                    throw $exception;
+                }
+
+                if (microtime(true) >= $deadline) {
+                    return false;
+                }
+            }
+
+            $import->setStatus(ImportStatus::ANALYSED->value)->save();
+
             return true;
+        } finally {
+            $lock->release();
         }
-
-        $importId = (int) $import->getId();
-        $lines = $this->reader->read($import->getStoredPath(), (int) $import->getAnalysisOffset(), (int) $import->getLineCount() + 1);
-
-        foreach ($lines as $line) {
-            $import
-                ->setAnalysisOffset($line->nextOffset)
-                ->setLineCount($line->number);
-
-            if (!$line->isBlank()) {
-                $this->analyseLine($import, $importId, $line->number, $line->content);
-            }
-
-            if (microtime(true) >= $deadline) {
-                $import->save();
-
-                return false;
-            }
-        }
-
-        $import->setStatus(ImportStatus::ANALYSED->value)->save();
-
-        return true;
     }
 
     private function analyseLine(JsonlImport $import, int $importId, int $number, string $content): void
@@ -96,7 +123,7 @@ final readonly class AnalysisService
             ->filterByImportId($importId)
             ->filterByValid(1)
             ->filterByRef($productRef, Criteria::NOT_EQUAL)
-            ->filterByPayload('%'.addcslashes(json_encode($variantRef, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES), '%_').'%', Criteria::LIKE)
+            ->filterByPayload('%'.addcslashes((string) json_encode($variantRef, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES), '%_\\').'%', Criteria::LIKE)
             ->find();
 
         foreach ($candidates as $candidate) {
