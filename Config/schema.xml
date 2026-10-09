@@ -20,7 +20,7 @@
         <column name="error_count" type="INTEGER" defaultValue="0" />
         <column name="excluded_count" type="INTEGER" defaultValue="0" />
         <!-- byte offset of the next line to analyse, then number of the last line imported -->
-        <column name="analysis_offset" type="BIGINT" defaultValue="0" />
+        <column name="analysis_offset" type="INTEGER" defaultValue="0" />
         <column name="cursor_line" type="INTEGER" defaultValue="0" />
         <!-- see Enum\RunPhase -->
         <column name="phase" size="20" type="VARCHAR" />

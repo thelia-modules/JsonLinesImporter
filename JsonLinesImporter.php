@@ -97,10 +97,10 @@ class JsonLinesImporter extends BaseModule
     }
 
     /**
-     * Where uploaded files are kept: under the shop local directory, out of the web root.
+     * Where uploaded files are kept: with the media of the shop (persistent, out of the web root).
      */
     public static function getStorageDirectory(): string
     {
-        return THELIA_LOCAL_DIR.'jsonl-imports'.DS;
+        return THELIA_LOCAL_DIR.'media'.DS.'jsonl-imports'.DS;
     }
 }

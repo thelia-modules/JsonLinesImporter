@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `jsonl_import`
     `updated_count` INTEGER DEFAULT 0,
     `error_count` INTEGER DEFAULT 0,
     `excluded_count` INTEGER DEFAULT 0,
-    `analysis_offset` BIGINT DEFAULT 0,
+    `analysis_offset` INTEGER DEFAULT 0,
     `cursor_line` INTEGER DEFAULT 0,
     `phase` VARCHAR(20),
     `current_ref` VARCHAR(255),
