@@ -121,6 +121,10 @@ final readonly class ImportRunner
             return false;
         }
 
+        // Global Propel switches: restored as found, the caller may rely on them.
+        $instancePooling = Propel::isInstancePoolingEnabled();
+        $versioning = ProductQuery::isVersioningEnabled();
+
         try {
             $import->reload();
 
@@ -165,8 +169,14 @@ final readonly class ImportRunner
 
             return false;
         } finally {
-            Propel::enableInstancePooling();
-            ProductQuery::enableVersioning();
+            if ($instancePooling) {
+                Propel::enableInstancePooling();
+            }
+
+            if ($versioning) {
+                ProductQuery::enableVersioning();
+            }
+
             $lock->release();
         }
     }

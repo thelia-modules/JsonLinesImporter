@@ -18,7 +18,7 @@ class JsonLinesImporter extends BaseModule
 
     public const BO_DOMAIN_NAME = 'jsonlinesimporter.bo.default-twig';
 
-    public const SCHEMA_ID = 'urn:thelia:json-lines-importer:product-import:1.0';
+    public const SCHEMA_ID = Validation\SchemaValidator::SCHEMA_ID;
 
     public function postActivation(?ConnectionInterface $con = null): void
     {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace JsonLinesImporter\Validation;
 
-use JsonLinesImporter\JsonLinesImporter;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Validator;
 
@@ -13,6 +12,8 @@ use Opis\JsonSchema\Validator;
  */
 final class SchemaValidator
 {
+    public const SCHEMA_ID = 'urn:thelia:json-lines-importer:product-import:1.0';
+
     private const MAX_ERRORS = 20;
 
     private ?Validator $validator = null;
@@ -31,7 +32,7 @@ final class SchemaValidator
      */
     public function validate(mixed $line): array
     {
-        $result = $this->validator()->validate($line, JsonLinesImporter::SCHEMA_ID);
+        $result = $this->validator()->validate($line, self::SCHEMA_ID);
 
         if ($result->isValid()) {
             return [];
@@ -65,7 +66,7 @@ final class SchemaValidator
         if (null === $this->validator) {
             $this->validator = new Validator();
             $this->validator->setMaxErrors(self::MAX_ERRORS);
-            $this->validator->resolver()->registerFile(JsonLinesImporter::SCHEMA_ID, $this->schemaPath);
+            $this->validator->resolver()->registerFile(self::SCHEMA_ID, $this->schemaPath);
         }
 
         return $this->validator;
