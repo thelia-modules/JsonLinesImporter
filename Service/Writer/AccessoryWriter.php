@@ -11,11 +11,14 @@ use Propel\Runtime\Connection\ConnectionInterface;
 use Thelia\Model\Accessory;
 use Thelia\Model\AccessoryQuery;
 use Thelia\Model\Product;
+use Thelia\Model\ProductAssociationType;
+use Thelia\Model\ProductAssociationTypeQuery;
 use Thelia\Model\ProductQuery;
 
 /**
  * Accessories, written in a second pass once every line is imported: an accessory may be a product
- * created by the same file.
+ * created by the same file. Only the links of the accessory type are touched: cross-selling, up-selling
+ * and the other relations of the product are left alone.
  */
 final readonly class AccessoryWriter
 {
@@ -23,6 +26,15 @@ final readonly class AccessoryWriter
     {
         if (!$line->accessories->present) {
             return;
+        }
+
+        $typeId = ProductAssociationTypeQuery::create()
+            ->filterByCode(ProductAssociationType::CODE_ACCESSORY)
+            ->select(['Id'])
+            ->findOne($con);
+
+        if (null === $typeId) {
+            throw new \RuntimeException('The accessory relation type is missing from product_association_type.');
         }
 
         $targets = [];
@@ -46,7 +58,7 @@ final readonly class AccessoryWriter
             $targets[(int) $accessoryId] = $accessory->position ?? $index + 1;
         }
 
-        foreach (AccessoryQuery::create()->filterByProductId($product->getId())->find($con) as $link) {
+        foreach (AccessoryQuery::create()->filterByProductId($product->getId())->filterByTypeId((int) $typeId)->find($con) as $link) {
             if (!isset($targets[(int) $link->getAccessory()])) {
                 $link->delete($con);
 
@@ -60,7 +72,8 @@ final readonly class AccessoryWriter
         foreach ($targets as $accessoryId => $position) {
             $link = (new Accessory())
                 ->setProductId((int) $product->getId())
-                ->setAccessory($accessoryId);
+                ->setAccessory($accessoryId)
+                ->setTypeId((int) $typeId);
             $link->save($con);
 
             // Thelia overwrites the position on insert: it is applied once the row exists.

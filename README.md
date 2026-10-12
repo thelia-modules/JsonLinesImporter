@@ -6,7 +6,7 @@ Each line is a product object validated against the JSON Schema `Config/schema/p
 
 ## Compatibility
 
-- Thelia 3.0 or later, default-twig back-office
+- Thelia 3.1 or later (typed product relations), default-twig back-office
 - PHP 8.3+
 - `opis/json-schema` ^2.6
 - Optional: Thelia Blocks (videos as blocks), TheliaLibrary (images of the HTML fields copied to the media library)
@@ -56,6 +56,7 @@ The parameters file is the one exported at step 3 ("Export the parameters"): sel
 - `FileManager::copyUploadedFile()` and the media library move the source file: they get a temporary copy.
 - `Product::setDefaultCategory()` deletes the former default link: the category links are computed and written by the module.
 - Thelia overwrites the position of images, documents and accessories on insert: it is applied once the row exists.
+- The `accessory` table holds every relation between products (accessory, cross-selling, up-selling, types declared by the merchant) under a required `type_id`: the module writes and replaces the links of the `accessory` type only.
 - `product_price.from_default_currency` defaults to 1: an explicit price writes it to 0.
 - The media library finds the file of an image in the session or default locale only: library images are created in the default locale.
 
