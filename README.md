@@ -13,13 +13,15 @@ Each line is a product object validated against the JSON Schema `Config/schema/p
 
 ## Installation
 
-A module of `local/modules` is not installed by Composer: add its dependency to the shop.
+The module is available on Packagist as `thelia/json-lines-importer-module`. Composer installs it in `vendor/thelia/modules/JsonLinesImporter` with its dependencies.
 
 ```bash
-composer require opis/json-schema:^2.6
+composer require thelia/json-lines-importer-module
 php Thelia module:refresh
 php Thelia module:activate JsonLinesImporter
 ```
+
+A copy placed by hand in `local/modules/JsonLinesImporter` is not installed by Composer: add its dependency to the shop first (`composer require opis/json-schema:^2.6`).
 
 The activation creates four tables: `jsonl_import`, `jsonl_import_line`, `jsonl_import_mapping`, `jsonl_import_media`. Uploaded files are kept in `local/media/jsonl-imports/`.
 
@@ -81,12 +83,18 @@ composer install
 php vendor/bin/phpunit --testsuite unit
 
 # Integration suite, from a shop with a test database where the module is active
-php -d auto_prepend_file=./bootstrap.php vendor/bin/phpunit -c local/modules/JsonLinesImporter/phpunit.xml.dist --testsuite integration
+php -d auto_prepend_file=./bootstrap.php vendor/bin/phpunit -c vendor/thelia/modules/JsonLinesImporter/phpunit.xml.dist --testsuite integration
 ```
+
+For a copy in `local/modules`, pass `-c local/modules/JsonLinesImporter/phpunit.xml.dist`. The CI runs both suites on a fresh Thelia 3 shop (`.github/workflows/ci.yml`).
 
 `THELIA_VENDOR_AUTOLOAD` points the integration suite at the autoloader of the shop when PHPUnit comes from the module vendor.
 
 The test database must be at the level of the core code (its `product_video` tables come with Thelia 3.2): a database stamped with the right version but created before a table was added to the update script of that version misses it, and the video tests fail on an unknown table. The video tests read their files from a local directory and need no network.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Author
 
