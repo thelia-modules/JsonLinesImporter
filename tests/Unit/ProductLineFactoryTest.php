@@ -58,6 +58,23 @@ final class ProductLineFactoryTest extends TestCase
     }
 
     #[Test]
+    public function anUntickedSaleKeyIsLeftUnchangedOnTheVariantsToo(): void
+    {
+        $parameters = new ImportParameters(selectedKeys: ['variants', 'price']);
+        $line = (new ProductLineFactory())->create([
+            'ref' => 'A',
+            'quantity' => 5,
+            'variants' => [['ref' => 'A-1', 'quantity' => 3, 'price' => 12, 'ean_code' => '2000000000008']],
+        ], 'fr_FR', $parameters);
+
+        $sale = $line->variants->value[0]->sale->withFallback($line->sale);
+
+        self::assertTrue($sale->quantity->isAbsent());
+        self::assertTrue($sale->eanCode->isAbsent());
+        self::assertSame(12.0, $sale->price->value);
+    }
+
+    #[Test]
     public function rootContentsStayWhenNoLocaleIsUnticked(): void
     {
         $parameters = new ImportParameters(selectedLocales: ['fr_FR', 'en_US']);

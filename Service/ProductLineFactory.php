@@ -39,6 +39,8 @@ final readonly class ProductLineFactory
         ));
 
         $saleNode = array_filter($data, static fn (string $key): bool => \in_array($key, SaleFields::KEYS, true) && $selected($key), \ARRAY_FILTER_USE_KEY);
+        // A sale field of a variant follows the box of its key, like the root one.
+        $variantSaleNode = static fn (array $node): array => array_filter($node, static fn (string $key): bool => !\in_array($key, SaleFields::KEYS, true) || $selected($key), \ARRAY_FILTER_USE_KEY);
 
         return new ProductLine(
             ref: trim((string) $data['ref']),
@@ -68,7 +70,7 @@ final readonly class ProductLineFactory
                     ref: isset($node['ref']) ? trim((string) $node['ref']) : null,
                     default: (bool) ($node['default'] ?? false),
                     visible: Field::from($node, 'visible', static fn (mixed $value): bool => (bool) $value),
-                    sale: SaleFields::fromNode($node),
+                    sale: SaleFields::fromNode($variantSaleNode($node)),
                     combination: array_map(
                         static fn (array $item): CombinationLine => new CombinationLine(
                             Label::fromNode($item['attribute'], $defaultLocale),

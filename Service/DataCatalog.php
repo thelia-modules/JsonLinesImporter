@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace JsonLinesImporter\Service;
 
+use JsonLinesImporter\Dto\SaleFields;
+
 /**
  * The keys of a line that step 2 lets the user select, by group.
  *
  * One box per first level key of the product object; each translatable field of the product has its
- * own box, valid for the root and for every locale. Sub keys of collections have no box.
+ * own box, valid for the root and for every locale. The sale fields have one box each, valid for the
+ * root and for every variant. The other sub keys of collections have no box.
  */
 final readonly class DataCatalog
 {
@@ -47,6 +50,12 @@ final readonly class DataCatalog
                 if (\is_array($block)) {
                     $keys = [...$keys, ...array_keys($block)];
                 }
+            }
+        }
+
+        foreach (\is_array($line['variants'] ?? null) ? $line['variants'] : [] as $variant) {
+            if (\is_array($variant)) {
+                $keys = [...$keys, ...array_intersect(array_keys($variant), SaleFields::KEYS)];
             }
         }
 
