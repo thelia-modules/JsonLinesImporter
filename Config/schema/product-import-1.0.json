@@ -1,28 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:thelia:json-lines-importer:product-import:1.0",
-  "title": "Objet produit d'une ligne JSONL d'import Thelia",
-  "description": "Une ligne du JSONL = un objet produit. Prix en HT. Collections : tableau = remplacement complet, null = vidée, clé absente = inchangée.",
+  "title": "Product object of a line of a Thelia JSON Lines import",
+  "description": "One line of the file is one product object. Prices exclude taxes. Collections: an array replaces the whole collection, null empties it, an absent key leaves it unchanged.",
   "type": "object",
   "required": ["ref"],
   "additionalProperties": false,
   "properties": {
-    "ref": { "$ref": "#/$defs/reference", "description": "product.ref, clé d'identité (upsert)." },
+    "ref": { "$ref": "#/$defs/reference", "description": "product.ref, identity key (created or updated)." },
     "visible": { "type": "boolean", "default": false },
     "virtual": { "type": "boolean", "default": false },
     "position": { "type": ["integer", "null"], "default": 0 },
 
     "title": { "$ref": "#/$defs/nullableString" },
     "chapo": { "$ref": "#/$defs/nullableString" },
-    "description": { "$ref": "#/$defs/nullableString", "description": "HTML accepté." },
+    "description": { "$ref": "#/$defs/nullableString", "description": "HTML accepted." },
     "postscriptum": { "$ref": "#/$defs/nullableString" },
     "meta_title": { "$ref": "#/$defs/nullableString" },
     "meta_description": { "$ref": "#/$defs/nullableString" },
     "meta_keywords": { "$ref": "#/$defs/nullableString" },
-    "url": { "$ref": "#/$defs/nullableString", "description": "URL source, alimente rewriting_url (redirection 301)." },
+    "url": { "$ref": "#/$defs/nullableString", "description": "Former address of the product page, written to rewriting_url as a 301 redirection." },
     "i18n": {
       "$ref": "#/$defs/i18nBlock",
-      "description": "Contenu traduisible par locale ; prioritaire sur les mêmes clés à la racine.",
+      "description": "Translatable content by locale; wins over the same keys at the root.",
       "additionalProperties": false,
       "patternProperties": {
         "^[a-z]{2}_[A-Z]{2}$": {
@@ -53,7 +53,7 @@
 
     "tax_rule": {
       "type": ["object", "null"],
-      "description": "Absente : règle de taxes par défaut de la boutique.",
+      "description": "Absent: the default tax rule of the shop.",
       "additionalProperties": false,
       "required": ["title"],
       "properties": {
@@ -64,7 +64,7 @@
 
     "categories": {
       "type": ["array", "null"],
-      "description": "Sans default:true, la première catégorie est la catégorie par défaut.",
+      "description": "Without default:true, the first category is the default category.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -129,7 +129,7 @@
         "additionalProperties": false,
         "required": ["source"],
         "properties": {
-          "_key": { "type": "string", "minLength": 1, "description": "Clé technique, référencée par variants[].images." },
+          "_key": { "type": "string", "minLength": 1, "description": "Technical key, referenced by variants[].images." },
           "source": { "$ref": "#/$defs/source" },
           "visible": { "type": "boolean", "default": true },
           "position": { "type": ["integer", "null"] },
@@ -163,7 +163,7 @@
 
     "videos": {
       "type": ["array", "null"],
-      "description": "Vidéos du produit (modèle ProductVideo du cœur) : adresse YouTube, Vimeo ou Dailymotion, ou fichier vidéo (mp4, webm, ogv) par URL ou chemin sur le serveur. Placées après les images du produit.",
+      "description": "Videos of the product (ProductVideo model of the core): a YouTube, Vimeo or Dailymotion address, or a video file (mp4, webm, ogv) by URL or path on the server. Placed after the images of the product.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -171,13 +171,13 @@
         "properties": {
           "source": { "$ref": "#/$defs/source" },
           "visible": { "type": "boolean", "default": true },
-          "position": { "type": ["integer", "null"], "description": "Ordre des vidéos entre elles." },
+          "position": { "type": ["integer", "null"], "description": "Order of the videos among themselves." },
           "title": { "$ref": "#/$defs/nullableString" },
-          "alt": { "$ref": "#/$defs/nullableString", "description": "Nom accessible du lecteur." },
+          "alt": { "$ref": "#/$defs/nullableString", "description": "Accessible name of the player." },
           "chapo": { "$ref": "#/$defs/nullableString" },
           "description": { "$ref": "#/$defs/nullableString" },
           "postscriptum": { "$ref": "#/$defs/nullableString" },
-          "group": { "$ref": "#/$defs/nullableString", "deprecated": true, "description": "Obsolète, ignoré (ancienne destination Thelia Blocks)." },
+          "group": { "$ref": "#/$defs/nullableString", "deprecated": true, "description": "Deprecated, ignored (former Thelia Blocks destination)." },
           "i18n": {
             "$ref": "#/$defs/i18nBlock",
             "additionalProperties": false,
@@ -218,8 +218,8 @@
     "reference": { "type": "string", "minLength": 1, "pattern": "\\S" },
     "label": { "type": "string", "minLength": 1, "pattern": "\\S" },
     "nullableString": { "type": ["string", "null"] },
-    "source": { "type": "string", "minLength": 1, "description": "URL ou chemin du fichier." },
-    "amount": { "type": "number", "minimum": 0, "description": "Montant HT." },
+    "source": { "type": "string", "minLength": 1, "description": "URL or path of the file." },
+    "amount": { "type": "number", "minimum": 0, "description": "Amount excluding taxes." },
 
     "i18nBlock": {
       "type": "object",
@@ -265,7 +265,7 @@
 
     "prices": {
       "type": ["array", "null"],
-      "description": "Prix par devise. from_default_currency vaut true par défaut, false si price est présent (price prioritaire). Sans price, promo_price est ignoré.",
+      "description": "Prices by currency. from_default_currency defaults to true, and to false when price is present (price wins). Without price, promo_price is ignored.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -273,7 +273,7 @@
         "if": { "required": ["from_default_currency"], "properties": { "from_default_currency": { "const": false } } },
         "then": { "required": ["price"] },
         "properties": {
-          "currency": { "type": "string", "pattern": "^[A-Z]{3}$", "description": "Code ISO 4217 existant dans currency.code." },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$", "description": "ISO 4217 code existing in currency.code." },
           "price": { "$ref": "#/$defs/amount" },
           "promo_price": { "$ref": "#/$defs/amount" },
           "from_default_currency": { "type": "boolean", "default": true }
@@ -293,7 +293,7 @@
 
     "variant": {
       "type": "object",
-      "description": "PSE. Les champs PSE absents reprennent ceux de la racine du produit.",
+      "description": "Sale element. Its absent fields take the values of the root of the product.",
       "additionalProperties": false,
       "properties": {
         "ref": { "$ref": "#/$defs/reference" },
@@ -321,7 +321,7 @@
         },
         "images": {
           "type": ["array", "null"],
-          "description": "Valeurs de images[]._key du produit.",
+          "description": "Values of images[]._key of the product.",
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         }
