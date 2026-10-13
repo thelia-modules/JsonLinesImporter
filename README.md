@@ -27,6 +27,7 @@ The activation creates four tables: `jsonl_import`, `jsonl_import_line`, `jsonl_
 
 ## Rules of a line
 
+- The file is UTF-8, one JSON object per line. A line that is not valid UTF-8 (a Windows-1252 export, for instance) is reported as invalid and the analysis goes on.
 - `ref` is the key: an existing product is updated, a missing one is created (both can be disabled).
 - Keys at the root of a node target the default locale of the shop; an `i18n.<locale>` block wins over them. A locale absent from a line is left untouched.
 - A collection present replaces the existing one, `null` empties it, an absent key leaves it unchanged. Replaying a file creates no duplicate.

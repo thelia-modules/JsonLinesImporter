@@ -103,7 +103,8 @@ final readonly class AnalysisService
             ->setRef($ref)
             ->setValid($result->isValid() ? 1 : 0)
             ->setResult($result->isValid() ? LineResult::PENDING->value : LineResult::INVALID->value)
-            ->setPayload($content)
+            // Bytes that are not UTF-8 are refused by a strict MySQL: the payload of such a line is scrubbed.
+            ->setPayload(mb_check_encoding($content, 'UTF-8') ? $content : mb_scrub($content, 'UTF-8'))
             ->setErrorList($result->errors())
             ->setWarningList($result->warnings());
 

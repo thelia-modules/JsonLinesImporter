@@ -28,6 +28,12 @@ final readonly class LineValidator
     {
         $result = new ValidationResult();
 
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            $result->addError('(root): the line is not valid UTF-8');
+
+            return $result;
+        }
+
         try {
             $object = json_decode($content, false, 512, \JSON_THROW_ON_ERROR);
             $data = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
