@@ -85,8 +85,9 @@ final readonly class ProductLineFactory
             videos: Field::from($keep('videos'), 'videos', static fn (array $nodes): array => array_map(
                 static fn (array $node): VideoLine => new VideoLine(
                     (string) $node['source'],
+                    Field::from($node, 'visible', static fn (mixed $value): bool => (bool) $value),
                     isset($node['position']) ? (int) $node['position'] : null,
-                    I18nBag::fromNode($node, ['title', 'group'], $defaultLocale, $locales),
+                    I18nBag::fromNode($node, VideoLine::TEXT_FIELDS, $defaultLocale, $locales),
                 ),
                 array_values($nodes),
             )),

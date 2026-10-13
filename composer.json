@@ -22,7 +22,6 @@
     "phpunit/phpunit": "^11.5"
   },
   "suggest": {
-    "thelia/thelia-blocks-module": "Video blocks destination",
     "thelia/thelia-library-module": "Copy of the images of the HTML fields into the media library"
   },
   "autoload": {

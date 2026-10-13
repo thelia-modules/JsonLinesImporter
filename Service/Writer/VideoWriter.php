@@ -4,71 +4,137 @@ declare(strict_types=1);
 
 namespace JsonLinesImporter\Service\Writer;
 
-use JsonLinesImporter\Dto\I18nBag;
+use JsonLinesImporter\Dto\FetchedFile;
 use JsonLinesImporter\Dto\ImportParameters;
 use JsonLinesImporter\Dto\ProductLine;
 use JsonLinesImporter\Dto\VideoLine;
-use JsonLinesImporter\Enum\VideoDestination;
+use JsonLinesImporter\Dto\VideoSource;
+use JsonLinesImporter\Enum\MediaKind;
+use JsonLinesImporter\Enum\MediaType;
+use JsonLinesImporter\Exception\ImportException;
 use JsonLinesImporter\Service\LineReport;
-use JsonLinesImporter\Service\ShopContext;
-use JsonLinesImporter\Service\YoutubeId;
+use JsonLinesImporter\Service\MediaFetcher;
+use JsonLinesImporter\Service\MediaProvenance;
+use JsonLinesImporter\Service\VideoSourceClassifier;
+use Propel\Runtime\ActiveQuery\Criteria;
 use Propel\Runtime\Connection\ConnectionInterface;
-use Thelia\Model\FeatureAvQuery;
-use Thelia\Model\FeatureProductQuery;
-use Thelia\Model\ModuleQuery;
+use Thelia\Action\ProductVideo as ProductVideoAction;
+use Thelia\Core\File\FileConfiguration;
+use Thelia\Domain\Media\Video\VideoProvider;
 use Thelia\Model\Product;
+use Thelia\Model\ProductImageQuery;
+use Thelia\Model\ProductVideo;
+use Thelia\Model\ProductVideoQuery;
 
 /**
- * Videos of a product, to the destination chosen for the import.
+ * Videos of a product (ProductVideo of the core), matched with the existing videos by their identity:
+ * the platform and the identifier of a platform video, the source of a file.
  *
- * Blocks: Thelia Blocks allows one block group per object; only its video blocks are rewritten, the
- * other blocks stay in place, before them. Feature: the first video becomes the free value of the chosen
- * feature, as a watch?v= address written in every active locale (an address does not depend on the
- * language, and the front reads the value of the current locale only).
+ * Files are fetched before the transaction of the line (prepare), then attached inside it (write). A
+ * known video is not fetched again: only its texts, visibility and position are updated. A video the
+ * module imported is removed when it leaves the line; a video added by hand is never touched.
+ *
+ * Images and videos share one sequence of positions: the videos of the line come after the images and
+ * the videos added by hand, in the order of their `position`.
  */
 final readonly class VideoWriter
 {
-    public const BLOCKS_MODULE = 'TheliaBlocks';
-
-    private const BLOCK_TYPE = 'blockVideo';
-
-    private const BLOCK_TITLE = ['default' => 'Video', 'fr' => 'Vidéo', 'en' => 'Video', 'es' => 'Video', 'it' => 'Video', 'de' => 'Video'];
-
     public function __construct(
-        private YoutubeId $youtubeId,
-        private FeatureWriter $featureWriter,
-        private ShopContext $shopContext,
+        private VideoSourceClassifier $classifier,
+        private MediaFetcher $fetcher,
+        private MediaProvenance $provenance,
+        private ProductVideoAction $videoAction,
     ) {
     }
 
-    public static function isBlocksAvailable(): bool
+    /**
+     * @return array<string, FetchedFile> fetch key => file, for the files not known yet
+     */
+    public function prepare(ProductLine $line, ?int $productId, ImportParameters $parameters, LineReport $report): array
     {
-        return class_exists(\TheliaBlocks\Model\BlockGroup::class)
-            && null !== ModuleQuery::create()->filterByCode(self::BLOCKS_MODULE)->filterByActivate(1)->findOne();
+        if (!$line->videos->hasValue()) {
+            return [];
+        }
+
+        $fetched = [];
+
+        /** @var VideoLine $video */
+        foreach ($line->videos->value as $video) {
+            try {
+                $source = $this->classifier->classify($video->source);
+            } catch (ImportException) {
+                // Reported when the line is written.
+                continue;
+            }
+
+            $key = self::fetchKey($source);
+
+            if (!$source->isFile() || isset($fetched[$key]) || (null !== $productId && null !== $this->existingVideo($productId, $source))) {
+                continue;
+            }
+
+            try {
+                $file = $this->fetcher->fetch($source->source, MediaKind::VIDEO, $parameters->videosDirectory);
+            } catch (ImportException $exception) {
+                $report->warn('Video ignored: '.$exception->getMessage());
+
+                continue;
+            }
+
+            if (!\array_key_exists($file->mimeType, FileConfiguration::getVideoConfig()['validMimeTypes'])) {
+                $file->discard();
+                $report->warn(\sprintf('Video ignored: %s: the shop does not accept %s videos', $source->source, $file->mimeType));
+
+                continue;
+            }
+
+            $fetched[$key] = $file;
+        }
+
+        return $fetched;
     }
 
-    public function write(Product $product, ProductLine $line, ImportParameters $parameters, LineReport $report, ConnectionInterface $con): void
+    /**
+     * @param array<string, FetchedFile> $fetched
+     */
+    public function write(Product $product, ProductLine $line, array $fetched, FileOperations $files, LineReport $report, ConnectionInterface $con): void
     {
         if (!$line->videos->present) {
             return;
         }
 
+        $productId = (int) $product->getId();
+
         /** @var list<VideoLine> $videos */
         $videos = $line->videos->value ?? [];
         usort($videos, static fn (VideoLine $left, VideoLine $right): int => ($left->position ?? \PHP_INT_MAX) <=> ($right->position ?? \PHP_INT_MAX));
 
+        /** @var array<string, array{VideoLine, VideoSource, ?ProductVideo}> $valid identity hash => video */
         $valid = [];
 
         foreach ($videos as $video) {
-            $videoId = $this->youtubeId->extract($video->source);
-
-            if (null === $videoId) {
-                $report->warn(\sprintf('Video ignored, not a YouTube address: %s', $video->source));
+            try {
+                $source = $this->classifier->classify($video->source);
+            } catch (ImportException $exception) {
+                $report->warn('Video ignored: '.$exception->getMessage());
 
                 continue;
             }
 
-            $valid[] = [$video, $videoId];
+            $hash = MediaProvenance::hash($source->identity());
+
+            if (isset($valid[$hash])) {
+                continue;
+            }
+
+            $object = $this->existingVideo($productId, $source);
+
+            // A file that could not be fetched was reported by prepare().
+            if (null === $object && $source->isFile() && !isset($fetched[self::fetchKey($source)])) {
+                continue;
+            }
+
+            $valid[$hash] = [$video, $source, $object];
         }
 
         // A list whose videos are all invalid leaves the current videos in place: a mistyped address
@@ -79,193 +145,143 @@ final readonly class VideoWriter
             return;
         }
 
-        if (VideoDestination::FEATURE === $parameters->videoDestination) {
-            $this->writeFeature($product, $valid, $parameters->videoFeatureId, $line->videos->isNull(), $report, $con);
+        // Removed first: the core closes the gap a video leaves, which would shift the positions written below.
+        $this->removeVideosNotIn($productId, $valid, $files, $con);
 
-            return;
-        }
+        $position = $this->lastPositionBeforeImportedVideos($productId, $con);
 
-        if (!self::isBlocksAvailable()) {
-            $report->warn('Videos ignored: the Thelia Blocks module is not active');
+        foreach ($valid as [$video, $source, $object]) {
+            $isNew = null === $object;
 
-            return;
-        }
+            if ($isNew) {
+                $object = $this->createVideo($productId, $source, $fetched[self::fetchKey($source)] ?? null, $files, $con);
+                $this->provenance->record(MediaType::PRODUCT_VIDEO, $productId, $source->identity(), (int) $object->getId());
+            }
 
-        $this->writeBlocks($product, $valid, $report, $con);
-    }
+            if ($video->visible->present || $isNew) {
+                $object->setVisible((int) $video->visible->or(true));
+            }
 
-    /** @param list<array{VideoLine, string}> $videos */
-    private function writeFeature(Product $product, array $videos, ?int $featureId, bool $isNull, LineReport $report, ConnectionInterface $con): void
-    {
-        if (null === $featureId) {
-            $report->warn('Videos ignored: no feature chosen to receive them');
+            // Thelia overwrites the position on insert: it is applied once the row exists.
+            $object->setPosition(++$position);
 
-            return;
-        }
+            foreach ($video->i18n->values as $locale => $fields) {
+                $object->setLocale($locale);
 
-        $link = FeatureProductQuery::create()
-            ->filterByProductId($product->getId())
-            ->filterByFeatureId($featureId)
-            ->findOne($con);
-
-        if ($isNull || [] === $videos) {
-            if (null !== $link) {
-                $valueId = $link->getIsFreeText() ? $link->getFeatureAvId() : null;
-                $link->delete($con);
-
-                if (null !== $valueId) {
-                    FeatureAvQuery::create()->filterById($valueId)->delete($con);
+                foreach ($fields as $name => $value) {
+                    match ($name) {
+                        'title' => $object->setTitle($value),
+                        'alt' => $object->setAlt($value),
+                        'chapo' => $object->setChapo($value),
+                        'description' => $object->setDescription($value),
+                        'postscriptum' => $object->setPostscriptum($value),
+                        default => null,
+                    };
                 }
             }
 
-            return;
+            $object->save($con);
         }
-
-        if (\count($videos) > 1) {
-            $report->warn('Only the first video is kept: the feature destination holds one video per product');
-        }
-
-        if (null === $link || !$link->getIsFreeText() || null === $link->getFeatureAvId()) {
-            $link?->delete($con);
-            $link = $this->featureWriter->createFreeLink($product, $featureId, $con);
-        }
-
-        $url = $this->youtubeId->watchUrl($videos[0][1]);
-        $titles = [];
-
-        foreach ($this->shopContext->activeLocales() as $locale) {
-            $titles[$locale] = ['title' => $url];
-        }
-
-        $this->featureWriter->writeFreeValue((int) $link->getFeatureAvId(), new I18nBag($titles), $con);
     }
 
-    /** @param list<array{VideoLine, string}> $videos */
-    private function writeBlocks(Product $product, array $videos, LineReport $report, ConnectionInterface $con): void
+    private function createVideo(int $productId, VideoSource $source, ?FetchedFile $file, FileOperations $files, ConnectionInterface $con): ProductVideo
     {
-        $defaultLocale = $this->shopContext->defaultLocale();
-        $link = \TheliaBlocks\Model\ItemBlockGroupQuery::create()
-            ->filterByItemType('product')
-            ->filterByItemId($product->getId())
-            ->findOne($con);
-        $group = null !== $link ? \TheliaBlocks\Model\BlockGroupQuery::create()->findPk($link->getBlockGroupId(), $con) : null;
+        $object = (new ProductVideo())
+            ->setProductId($productId)
+            ->setVisible(1);
 
-        if ([] === $videos) {
-            if (null !== $group) {
-                $this->removeVideoBlocks((int) $group->getId(), $con);
-            }
-
-            return;
-        }
-
-        $locales = [$defaultLocale];
-
-        foreach ($videos as [$video]) {
-            $locales = [...$locales, ...$video->i18n->locales()];
-        }
-
-        $groupTitles = $this->groupTitles($videos, array_values(array_unique($locales)), $defaultLocale);
-
-        if (\count(array_unique(array_filter(array_map(static fn (array $item): ?string => $item[0]->i18n->firstValue('group', $defaultLocale), $videos)))) > 1) {
-            $report->warn('Several video groups in the line: only the first one is used');
-        }
-
-        if (null === $group) {
-            $group = (new \TheliaBlocks\Model\BlockGroup())
-                ->setVisible(1)
-                ->setSlug(substr(strtolower((string) preg_replace('/[^a-z0-9]+/i', '_', 'product_'.$product->getRef())), 0, 45));
-
-            foreach ($groupTitles as $locale => $title) {
-                $group->setLocale($locale)->setTitle($title)->setJsonContent('[]');
-            }
-
-            $group->save($con);
-
-            (new \TheliaBlocks\Model\ItemBlockGroup())
-                ->setItemType('product')
-                ->setItemId((int) $product->getId())
-                ->setBlockGroupId((int) $group->getId())
+        if (!$source->isFile()) {
+            $object
+                ->setProvider($source->provider->value)
+                ->setExternalId($source->externalId)
                 ->save($con);
+
+            return $object;
         }
 
-        foreach (array_keys($groupTitles) as $locale) {
-            $group->setLocale($locale);
-
-            if (null === $group->getTitle()) {
-                $group->setTitle($groupTitles[$locale]);
-            }
-
-            $blocks = self::withoutVideoBlocks((string) $group->getJsonContent());
-
-            foreach ($videos as [$video, $videoId]) {
-                $blocks[] = [
-                    'id' => self::uuid(),
-                    'data' => ['url' => $this->youtubeId->watchUrl($videoId), 'videoId' => $videoId],
-                    'parent' => null,
-                    'title' => self::BLOCK_TITLE,
-                    'type' => ['id' => self::BLOCK_TYPE],
-                ];
-            }
-
-            $group->setJsonContent(json_encode($blocks, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES));
+        if (null === $file) {
+            throw new \LogicException(\sprintf('The video %s was not fetched.', $source->source));
         }
 
-        $group->save($con);
+        $object
+            ->setProvider(VideoProvider::File->value)
+            ->setFile('importing')
+            ->save($con);
+
+        // Same naming as Thelia's FileManager (sanitized original name, then the id of the row), with
+        // the extension of the detected type.
+        $fileName = $file->baseName().'-'.$object->getId().'.'.$file->extension();
+        $files->place($file->temporaryPath, $object->getUploadDir().\DIRECTORY_SEPARATOR.$fileName);
+
+        $object->setFile($fileName);
+
+        return $object;
     }
 
     /**
-     * @param list<array{VideoLine, string}> $videos
-     * @param list<string>                   $locales
-     *
-     * @return array<string, string> locale => title of the group: its `group`, else the title of the first video
+     * @param array<string, array{VideoLine, VideoSource, ?ProductVideo}> $valid identity hash => video
      */
-    private function groupTitles(array $videos, array $locales, string $defaultLocale): array
+    private function removeVideosNotIn(int $productId, array $valid, FileOperations $files, ConnectionInterface $con): void
     {
-        $titles = [];
-
-        foreach ($locales as $locale) {
-            $title = null;
-
-            foreach ($videos as [$video]) {
-                $title ??= $video->i18n->get($locale, 'group');
+        foreach ($this->provenance->findAll(MediaType::PRODUCT_VIDEO, $productId) as $record) {
+            if (isset($valid[$record->getSourceHash()])) {
+                continue;
             }
 
-            foreach ($videos as [$video]) {
-                $title ??= $video->i18n->get($locale, 'title');
+            $object = ProductVideoQuery::create()->findPk((int) $record->getObjectId(), $con);
+
+            if (null !== $object && (int) $object->getProductId() === $productId) {
+                if ($object->isHostedFile()) {
+                    $files->deleteAfterCommit($object->getUploadDir().\DIRECTORY_SEPARATOR.$object->getFile());
+                    // The link the front office plays the file from.
+                    $files->deleteAfterCommit($this->videoAction->cachedFilePath($object));
+                }
+
+                $object->delete($con);
             }
 
-            $titles[$locale] = $title ?? ($videos[0][0]->i18n->firstValue('group', $defaultLocale) ?? $videos[0][0]->i18n->firstValue('title', $defaultLocale) ?? 'Videos');
-        }
-
-        return $titles;
-    }
-
-    private function removeVideoBlocks(int $groupId, ConnectionInterface $con): void
-    {
-        foreach (\TheliaBlocks\Model\BlockGroupI18nQuery::create()->filterById($groupId)->find($con) as $translation) {
-            $translation
-                ->setJsonContent(json_encode(self::withoutVideoBlocks((string) $translation->getJsonContent()), \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES))
-                ->save($con);
+            $record->delete($con);
         }
     }
 
-    /** @return list<mixed> */
-    private static function withoutVideoBlocks(string $jsonContent): array
+    /**
+     * The last position the videos of the line come after: the images of the product and the videos
+     * the module did not import.
+     */
+    private function lastPositionBeforeImportedVideos(int $productId, ConnectionInterface $con): int
     {
-        $blocks = json_decode($jsonContent, true);
+        $importedIds = array_map(
+            static fn ($record): int => (int) $record->getObjectId(),
+            $this->provenance->findAll(MediaType::PRODUCT_VIDEO, $productId),
+        );
 
-        return array_values(array_filter(
-            \is_array($blocks) ? $blocks : [],
-            static fn (mixed $block): bool => self::BLOCK_TYPE !== ($block['type']['id'] ?? null),
-        ));
+        $images = ProductImageQuery::create()->filterByProductId($productId)->orderByPosition(Criteria::DESC)->findOne($con);
+        $videos = ProductVideoQuery::create()->filterByProductId($productId);
+
+        if ([] !== $importedIds) {
+            $videos->filterById($importedIds, Criteria::NOT_IN);
+        }
+
+        $video = $videos->orderByPosition(Criteria::DESC)->findOne($con);
+
+        return max((int) $images?->getPosition(), (int) $video?->getPosition());
     }
 
-    private static function uuid(): string
+    private function existingVideo(int $productId, VideoSource $source): ?ProductVideo
     {
-        $bytes = random_bytes(16);
-        $bytes[6] = \chr((\ord($bytes[6]) & 0x0F) | 0x40);
-        $bytes[8] = \chr((\ord($bytes[8]) & 0x3F) | 0x80);
+        $record = $this->provenance->find(MediaType::PRODUCT_VIDEO, $productId, $source->identity());
 
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+        if (null === $record) {
+            return null;
+        }
+
+        $object = ProductVideoQuery::create()->findPk((int) $record->getObjectId());
+
+        return null !== $object && (int) $object->getProductId() === $productId ? $object : null;
+    }
+
+    private static function fetchKey(VideoSource $source): string
+    {
+        return MediaType::PRODUCT_VIDEO->value.':'.MediaProvenance::hash($source->identity());
     }
 }

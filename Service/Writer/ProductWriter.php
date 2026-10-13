@@ -66,7 +66,8 @@ final readonly class ProductWriter
             $line = $this->withI18n($line, $this->htmlImageWriter->rewrite($line->i18n, $report));
         }
 
-        $fetched = $this->mediaWriter->prepare($line, $product?->getId(), $parameters, $report);
+        $fetched = $this->mediaWriter->prepare($line, $product?->getId(), $parameters, $report)
+            + $this->videoWriter->prepare($line, $product?->getId(), $parameters, $report);
         $files = new FileOperations();
         $con = Propel::getWriteConnection('TheliaMain');
         $con->beginTransaction();
@@ -86,8 +87,9 @@ final readonly class ProductWriter
                 $this->categoryWriter->write($product, $line, new LineReport(), $con);
             }
 
-            $this->featureWriter->write($product, $line, $parameters->videoFeatureId, $report, $con);
-            $this->videoWriter->write($product, $line, $parameters, $report, $con);
+            $this->featureWriter->write($product, $line, $report, $con);
+            // After the images: the videos come after them in the sequence they share.
+            $this->videoWriter->write($product, $line, $fetched, $files, $report, $con);
             $this->redirectWriter->write($product, $line, $report, $con);
 
             $con->commit();

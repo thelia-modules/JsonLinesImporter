@@ -10,7 +10,7 @@ use JsonLinesImporter\Service\Writer\HtmlImageWriter;
 
 /**
  * What the valid lines of an import carry: the keys and locales of step 2, and the facts that decide
- * which parameters step 3 offers (local media paths, videos, images of the HTML fields).
+ * which parameters step 3 offers (local media paths, images of the HTML fields).
  */
 final readonly class DataInventory
 {
@@ -20,7 +20,7 @@ final readonly class DataInventory
     }
 
     /**
-     * @return array{keys: array<string, int>, locales: array<string, int>, local_images: bool, local_documents: bool, videos: bool, html_images: bool, referentials: array<string, bool>}
+     * @return array{keys: array<string, int>, locales: array<string, int>, local_images: bool, local_documents: bool, local_videos: bool, html_images: bool, referentials: array<string, bool>}
      */
     public function build(JsonlImport $import): array
     {
@@ -28,6 +28,7 @@ final readonly class DataInventory
         $locales = [];
         $localImages = false;
         $localDocuments = false;
+        $localVideos = false;
         $htmlImages = false;
         $referentials = ['tax_rule' => false, 'category' => false, 'brand' => false, 'feature' => false, 'attribute' => false];
 
@@ -54,6 +55,7 @@ final readonly class DataInventory
 
             $localImages = $localImages || self::hasLocalSource($line['images'] ?? null);
             $localDocuments = $localDocuments || self::hasLocalSource($line['documents'] ?? null);
+            $localVideos = $localVideos || self::hasLocalSource($line['videos'] ?? null);
             $htmlImages = $htmlImages || self::hasHtmlImages($line);
 
             $referentials['tax_rule'] = $referentials['tax_rule'] || \is_array($line['tax_rule'] ?? null);
@@ -71,7 +73,7 @@ final readonly class DataInventory
             'locales' => $locales,
             'local_images' => $localImages,
             'local_documents' => $localDocuments,
-            'videos' => isset($keys['videos']),
+            'local_videos' => $localVideos,
             'html_images' => $htmlImages,
             'referentials' => $referentials,
         ];

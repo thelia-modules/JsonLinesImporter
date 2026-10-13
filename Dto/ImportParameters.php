@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace JsonLinesImporter\Dto;
 
-use JsonLinesImporter\Enum\VideoDestination;
-
 /**
  * The choices made in the wizard (steps 2 to 4), stored as JSON on the import and exported for the console.
  */
@@ -26,8 +24,7 @@ final readonly class ImportParameters
         public ?int $fallbackCategoryId = null,
         public ?string $imagesDirectory = null,
         public ?string $documentsDirectory = null,
-        public VideoDestination $videoDestination = VideoDestination::BLOCKS,
-        public ?int $videoFeatureId = null,
+        public ?string $videosDirectory = null,
         public bool $copyHtmlImages = false,
         public array $excludedLines = [],
         /** last wizard step reached, 1 to 5 */
@@ -47,8 +44,7 @@ final readonly class ImportParameters
             fallbackCategoryId: self::intOrNull($data['fallback_category_id'] ?? null),
             imagesDirectory: self::stringOrNull($data['images_directory'] ?? null),
             documentsDirectory: self::stringOrNull($data['documents_directory'] ?? null),
-            videoDestination: VideoDestination::tryFrom((string) ($data['video_destination'] ?? '')) ?? VideoDestination::BLOCKS,
-            videoFeatureId: self::intOrNull($data['video_feature_id'] ?? null),
+            videosDirectory: self::stringOrNull($data['videos_directory'] ?? null),
             copyHtmlImages: (bool) ($data['copy_html_images'] ?? false),
             excludedLines: array_values(array_map('intval', (array) ($data['excluded_lines'] ?? []))),
             step: max(1, min(5, (int) ($data['step'] ?? 1))),
@@ -67,8 +63,7 @@ final readonly class ImportParameters
             'fallback_category_id' => $this->fallbackCategoryId,
             'images_directory' => $this->imagesDirectory,
             'documents_directory' => $this->documentsDirectory,
-            'video_destination' => $this->videoDestination->value,
-            'video_feature_id' => $this->videoFeatureId,
+            'videos_directory' => $this->videosDirectory,
             'copy_html_images' => $this->copyHtmlImages,
             'excluded_lines' => $this->excludedLines,
             'step' => $this->step,

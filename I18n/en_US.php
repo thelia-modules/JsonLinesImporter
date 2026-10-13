@@ -4,7 +4,6 @@
 return [
     'A running import cannot be deleted: pause it first.' => 'A running import cannot be deleted: pause it first.',
     'Choose a .jsonl file of %size% at most.' => 'Choose a .jsonl file of %size% at most.',
-    'Choose the feature that receives the videos.' => 'Choose the feature that receives the videos.',
     'JSONL import' => 'JSONL import',
     'Only .jsonl files are accepted.' => 'Only .jsonl files are accepted.',
     'The directory %directory% does not exist or cannot be read.' => 'The directory %directory% does not exist or cannot be read.',

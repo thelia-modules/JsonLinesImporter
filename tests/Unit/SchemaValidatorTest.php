@@ -45,4 +45,21 @@ final class SchemaValidatorTest extends TestCase
         self::assertNotSame([], $validator->validate(json_decode('{"ref":"X","colour":"red"}')));
         self::assertNotSame([], $validator->validate(json_decode('{"visible":true}')));
     }
+
+    #[Test]
+    public function aVideoCarriesTheTextsOfAProductVideoAndStillAcceptsItsFormerGroup(): void
+    {
+        $line = json_decode('{"ref":"X","videos":[{"source":"https://vimeo.com/123456789","visible":false,"position":2,"title":"Demo","alt":"Demo of the lamp","chapo":"c","description":"d","postscriptum":"p","group":"Former block group","i18n":{"en_US":{"title":"Demo","alt":"Lamp demo","group":"Former"}}}]}');
+
+        self::assertSame([], (new SchemaValidator())->validate($line));
+    }
+
+    #[Test]
+    public function anUnknownKeyOfAVideoIsRefused(): void
+    {
+        $errors = (new SchemaValidator())->validate(json_decode('{"ref":"X","videos":[{"source":"https://youtu.be/aBcDeFgHi01","thumbnail":"front"}]}'));
+
+        self::assertNotSame([], $errors);
+        self::assertStringContainsString('/videos', $errors[0]);
+    }
 }

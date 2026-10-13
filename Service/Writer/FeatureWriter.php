@@ -21,7 +21,7 @@ use Thelia\Model\Product;
  * Features of a product, matched on the (feature, value) pair: a feature may carry several values.
  *
  * A free value is a feature value of its own, translatable, the way the back-office creates it; the
- * deprecated free_text_value column is not used. The feature that receives the videos is left out.
+ * deprecated free_text_value column is not used.
  */
 final readonly class FeatureWriter
 {
@@ -30,7 +30,7 @@ final readonly class FeatureWriter
     ) {
     }
 
-    public function write(Product $product, ProductLine $line, ?int $videoFeatureId, LineReport $report, ConnectionInterface $con): void
+    public function write(Product $product, ProductLine $line, LineReport $report, ConnectionInterface $con): void
     {
         if (!$line->features->present) {
             return;
@@ -43,7 +43,7 @@ final readonly class FeatureWriter
         foreach ($line->features->value ?? [] as $feature) {
             $featureId = $this->resolver->resolve(ReferentialType::FEATURE, $feature->feature);
 
-            if (null === $featureId || $featureId === $videoFeatureId) {
+            if (null === $featureId) {
                 $report->warn(\sprintf('Feature "%s" ignored', $feature->feature->matchingTitle));
 
                 continue;
@@ -85,7 +85,7 @@ final readonly class FeatureWriter
         }
 
         foreach ($existing as $link) {
-            if (isset($kept[(int) $link->getId()]) || (int) $link->getFeatureId() === $videoFeatureId) {
+            if (isset($kept[(int) $link->getId()])) {
                 continue;
             }
 
@@ -99,9 +99,9 @@ final readonly class FeatureWriter
     }
 
     /**
-     * Writes the free value of a feature, one title per locale (used for the video feature too).
+     * Writes the free value of a feature, one title per locale.
      */
-    public function writeFreeValue(int $featureAvId, I18nBag $titles, ConnectionInterface $con): void
+    private function writeFreeValue(int $featureAvId, I18nBag $titles, ConnectionInterface $con): void
     {
         $value = FeatureAvQuery::create()->findPk($featureAvId, $con);
 
@@ -118,7 +118,7 @@ final readonly class FeatureWriter
         $value->save($con);
     }
 
-    public function createFreeLink(Product $product, int $featureId, ConnectionInterface $con): FeatureProduct
+    private function createFreeLink(Product $product, int $featureId, ConnectionInterface $con): FeatureProduct
     {
         $value = (new FeatureAv())->setFeatureId($featureId);
         $value->save($con);

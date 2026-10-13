@@ -65,4 +65,27 @@ final class ProductLineFactoryTest extends TestCase
 
         self::assertSame(['fr_FR'], $line->urls->locales());
     }
+
+    #[Test]
+    public function aVideoKeepsItsVisibilityAndTextsButNotItsFormerGroup(): void
+    {
+        $line = (new ProductLineFactory())->create([
+            'ref' => 'A',
+            'videos' => [
+                ['source' => ' https://youtu.be/aBcDeFgHi01 ', 'visible' => false, 'position' => 2, 'title' => 'Demo', 'alt' => 'Demo of the lamp', 'group' => 'Block group', 'i18n' => ['en_US' => ['description' => 'In use']]],
+                ['source' => 'clip.mp4'],
+            ],
+        ], 'fr_FR', new ImportParameters());
+
+        [$first, $second] = $line->videos->value;
+
+        self::assertSame(' https://youtu.be/aBcDeFgHi01 ', $first->source);
+        self::assertFalse($first->visible->value);
+        self::assertSame(2, $first->position);
+        self::assertSame('Demo of the lamp', $first->i18n->get('fr_FR', 'alt'));
+        self::assertSame('In use', $first->i18n->get('en_US', 'description'));
+        self::assertFalse($first->i18n->hasField('group'));
+        self::assertTrue($second->visible->isAbsent());
+        self::assertNull($second->position);
+    }
 }

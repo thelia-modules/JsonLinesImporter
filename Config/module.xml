@@ -24,6 +24,6 @@
         </author>
     </authors>
     <type>classic</type>
-    <thelia>3.1.0</thelia>
+    <thelia>3.2.0</thelia>
     <stability>beta</stability>
 </module>

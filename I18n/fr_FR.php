@@ -4,7 +4,6 @@
 return [
     'A running import cannot be deleted: pause it first.' => "Un import en cours ne peut pas être supprimé : mettez-le d'abord en pause.",
     'Choose a .jsonl file of %size% at most.' => 'Choisissez un fichier .jsonl de %size% au maximum.',
-    'Choose the feature that receives the videos.' => 'Choisissez la caractéristique qui reçoit les vidéos.',
     'JSONL import' => 'Import JSONL',
     'Only .jsonl files are accepted.' => 'Seuls les fichiers .jsonl sont acceptés.',
     'The directory %directory% does not exist or cannot be read.' => "Le répertoire %directory% n'existe pas ou n'est pas lisible.",

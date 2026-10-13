@@ -14,7 +14,7 @@ use JsonLinesImporter\Dto\ProductLine;
 use JsonLinesImporter\Dto\VariantLine;
 use JsonLinesImporter\Dto\VideoLine;
 use JsonLinesImporter\Enum\ReferentialType;
-use JsonLinesImporter\Enum\VideoDestination;
+use JsonLinesImporter\Exception\ImportException;
 use JsonLinesImporter\Model\JsonlImportLine;
 
 /**
@@ -29,7 +29,7 @@ final readonly class PreviewBuilder
         private ProductLineFactory $lineFactory,
         private ReferentialResolver $resolver,
         private ShopContext $shopContext,
-        private YoutubeId $youtubeId,
+        private VideoSourceClassifier $videoSourceClassifier,
         private UrlPathNormalizer $normalizer,
     ) {
     }
@@ -65,7 +65,7 @@ final readonly class PreviewBuilder
         $this->referentials($line, $groups, $warnings);
         $this->medias('Images', $line->images, $groups);
         $this->medias('Documents', $line->documents, $groups);
-        $this->videos($line, $parameters, $groups, $warnings);
+        $this->videos($line, $groups, $warnings);
 
         if ($line->accessories->present) {
             $groups['Accessories'][] = null === $line->accessories->value ? 'null: emptied' : implode(', ', array_map(static fn ($accessory): string => $accessory->ref, $line->accessories->value));
@@ -172,23 +172,29 @@ final readonly class PreviewBuilder
     }
 
     /** @param list<string> $warnings */
-    private function videos(ProductLine $line, ImportParameters $parameters, array &$groups, array &$warnings): void
+    private function videos(ProductLine $line, array &$groups, array &$warnings): void
     {
         if (!$line->videos->present) {
             return;
         }
 
-        $destination = VideoDestination::FEATURE === $parameters->videoDestination ? 'feature' : 'blocks';
+        if (null === $line->videos->value) {
+            $groups['Videos'][] = 'null: videos imported by the module removed';
+
+            return;
+        }
 
         /** @var VideoLine $video */
-        foreach ($line->videos->value ?? [] as $video) {
-            if (null === $this->youtubeId->extract($video->source)) {
-                $warnings[] = 'Video ignored, not a YouTube address: '.$video->source;
+        foreach ($line->videos->value as $video) {
+            try {
+                $source = $this->videoSourceClassifier->classify($video->source);
+            } catch (ImportException $exception) {
+                $warnings[] = 'Video ignored: '.$exception->getMessage();
 
                 continue;
             }
 
-            $groups['Videos'][] = $video->source.' → '.$destination;
+            $groups['Videos'][] = $video->source.' → '.$source->label();
         }
     }
 

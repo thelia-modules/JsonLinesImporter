@@ -9,7 +9,6 @@ use JsonLinesImporter\Enum\ImportStatus;
 use JsonLinesImporter\Enum\LineAction;
 use JsonLinesImporter\Enum\LineResult;
 use JsonLinesImporter\Enum\ReferentialType;
-use JsonLinesImporter\Enum\VideoDestination;
 use JsonLinesImporter\Exception\ImportException;
 use JsonLinesImporter\JsonLinesImporter;
 use JsonLinesImporter\Model\JsonlImport;
@@ -25,7 +24,6 @@ use JsonLinesImporter\Service\ParametersFile;
 use JsonLinesImporter\Service\PreviewBuilder;
 use JsonLinesImporter\Service\ShopContext;
 use JsonLinesImporter\Service\Writer\HtmlImageWriter;
-use JsonLinesImporter\Service\Writer\VideoWriter;
 use Propel\Runtime\ActiveQuery\Criteria;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -37,7 +35,6 @@ use Thelia\Core\Security\AccessManager;
 use Thelia\Core\Security\Exception\TokenAuthenticationException;
 use Thelia\Core\Translation\Translator;
 use Thelia\Model\CategoryQuery;
-use Thelia\Model\FeatureQuery;
 use Thelia\Model\TemplateQuery;
 use Thelia\Tools\TokenProvider;
 use Thelia\Tools\URL;
@@ -322,11 +319,9 @@ class ImportController extends BaseAdminController
             'pages' => $mappingInventory->pages($import),
             'show_images_directory' => $found['local_images'] && $parameters->isKeySelected('images'),
             'show_documents_directory' => $found['local_documents'] && $parameters->isKeySelected('documents'),
-            'show_videos' => $found['videos'] && $parameters->isKeySelected('videos'),
+            'show_videos_directory' => $found['local_videos'] && $parameters->isKeySelected('videos'),
             'show_html_images' => $found['html_images'],
-            'blocks_available' => VideoWriter::isBlocksAvailable(),
             'library_available' => HtmlImageWriter::isLibraryAvailable(),
-            'features' => $this->featureOptions(),
             'templates' => $this->templateOptions(),
         ]);
     }
@@ -345,18 +340,12 @@ class ImportController extends BaseAdminController
         $form = $request->request;
         $errors = [];
 
-        foreach (['images_directory', 'documents_directory'] as $directoryKey) {
+        foreach (['images_directory', 'documents_directory', 'videos_directory'] as $directoryKey) {
             $directory = trim((string) $form->get($directoryKey, ''));
 
             if ('' !== $directory && (!is_dir($directory) || !is_readable($directory))) {
                 $errors[] = $this->trans('The directory %directory% does not exist or cannot be read.', ['%directory%' => $directory]);
             }
-        }
-
-        $destination = VideoDestination::tryFrom((string) $form->get('video_destination', '')) ?? VideoDestination::BLOCKS;
-
-        if (VideoDestination::FEATURE === $destination && '' === (string) $form->get('video_feature_id', '')) {
-            $errors[] = $this->trans('Choose the feature that receives the videos.');
         }
 
         $this->saveParameters($import, [
@@ -366,8 +355,7 @@ class ImportController extends BaseAdminController
             'template_id' => $form->get('template_id'),
             'images_directory' => $form->get('images_directory'),
             'documents_directory' => $form->get('documents_directory'),
-            'video_destination' => $destination->value,
-            'video_feature_id' => $form->get('video_feature_id'),
+            'videos_directory' => $form->get('videos_directory'),
             'copy_html_images' => $form->getBoolean('copy_html_images'),
             'step' => [] === $errors ? 4 : 3,
         ]);
@@ -679,18 +667,6 @@ class ImportController extends BaseAdminController
 
         foreach (CategoryQuery::create()->orderByParent()->orderByPosition()->find() as $category) {
             $options[(int) $category->getId()] = (string) $category->setLocale($shopContext->defaultLocale())->getTitle();
-        }
-
-        return $options;
-    }
-
-    /** @return array<int, string> */
-    private function featureOptions(): array
-    {
-        $options = [];
-
-        foreach (FeatureQuery::create()->orderByPosition()->find() as $feature) {
-            $options[(int) $feature->getId()] = (string) $feature->setLocale($this->getCurrentEditionLocale())->getTitle() ?: '#'.$feature->getId();
         }
 
         return $options;

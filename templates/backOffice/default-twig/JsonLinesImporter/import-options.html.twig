@@ -45,7 +45,7 @@
                 </div>
             </div>
 
-            {% if show_images_directory or show_documents_directory %}
+            {% if show_images_directory or show_documents_directory or show_videos_directory %}
                 <div class="card mb-3">
                     <div class="card-header fw-semibold">{{ 'Media given by a path on the server'|trans({}, d) }}</div>
                     <div class="card-body">
@@ -56,35 +56,12 @@
                         {% endif %}
                         {% if show_documents_directory %}
                             <label class="form-label" for="jli-documents-dir">{{ 'Directory of the documents'|trans({}, d) }}</label>
-                            <input class="form-control" id="jli-documents-dir" name="documents_directory" value="{{ parameters.documentsDirectory }}" placeholder="/var/www/import/documents">
+                            <input class="form-control mb-2" id="jli-documents-dir" name="documents_directory" value="{{ parameters.documentsDirectory }}" placeholder="/var/www/import/documents">
                         {% endif %}
-                    </div>
-                </div>
-            {% endif %}
-
-            {% if show_videos %}
-                <div class="card mb-3">
-                    <div class="card-header fw-semibold">{{ 'Videos'|trans({}, d) }}</div>
-                    <div class="card-body">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="video_destination" value="blocks" id="jli-video-blocks"
-                                   {{ parameters.videoDestination.value == 'blocks' ? 'checked' }} {{ blocks_available ? '' : 'disabled' }}>
-                            <label class="form-check-label" for="jli-video-blocks">
-                                {{ 'Video blocks (Thelia Blocks): only the video blocks of the product are rewritten'|trans({}, d) }}
-                                {% if not blocks_available %}<span class="badge text-bg-secondary">{{ 'module inactive'|trans({}, d) }}</span>{% endif %}
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="video_destination" value="feature" id="jli-video-feature" {{ parameters.videoDestination.value == 'feature' ? 'checked' }}>
-                            <label class="form-check-label" for="jli-video-feature">{{ 'A feature of the product (one video per product, YouTube address)'|trans({}, d) }}</label>
-                        </div>
-                        <div class="mt-2 ms-4" style="max-width: 30rem">
-                            <label class="form-label visually-hidden" for="jli-video-feature-id">{{ 'Feature of the videos'|trans({}, d) }}</label>
-                            <select class="form-select" id="jli-video-feature-id" name="video_feature_id">
-                                <option value="">{{ 'Choose the feature'|trans({}, d) }}</option>
-                                {% for id, title in features %}<option value="{{ id }}" {{ parameters.videoFeatureId == id ? 'selected' }}>{{ title }} (#{{ id }})</option>{% endfor %}
-                            </select>
-                        </div>
+                        {% if show_videos_directory %}
+                            <label class="form-label" for="jli-videos-dir">{{ 'Directory of the videos'|trans({}, d) }}</label>
+                            <input class="form-control" id="jli-videos-dir" name="videos_directory" value="{{ parameters.videosDirectory }}" placeholder="/var/www/import/videos">
+                        {% endif %}
                     </div>
                 </div>
             {% endif %}

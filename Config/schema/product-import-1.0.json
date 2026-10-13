@@ -163,16 +163,21 @@
 
     "videos": {
       "type": ["array", "null"],
-      "description": "Rattachées à la fiche produit via le module Thelia Blocks.",
+      "description": "Vidéos du produit (modèle ProductVideo du cœur) : adresse YouTube, Vimeo ou Dailymotion, ou fichier vidéo (mp4, webm, ogv) par URL ou chemin sur le serveur. Placées après les images du produit.",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["source"],
         "properties": {
           "source": { "$ref": "#/$defs/source" },
-          "position": { "type": ["integer", "null"] },
+          "visible": { "type": "boolean", "default": true },
+          "position": { "type": ["integer", "null"], "description": "Ordre des vidéos entre elles." },
           "title": { "$ref": "#/$defs/nullableString" },
-          "group": { "$ref": "#/$defs/nullableString", "description": "Groupe Thelia Blocks ; à défaut, le titre de la vidéo." },
+          "alt": { "$ref": "#/$defs/nullableString", "description": "Nom accessible du lecteur." },
+          "chapo": { "$ref": "#/$defs/nullableString" },
+          "description": { "$ref": "#/$defs/nullableString" },
+          "postscriptum": { "$ref": "#/$defs/nullableString" },
+          "group": { "$ref": "#/$defs/nullableString", "deprecated": true, "description": "Obsolète, ignoré (ancienne destination Thelia Blocks)." },
           "i18n": {
             "$ref": "#/$defs/i18nBlock",
             "additionalProperties": false,
@@ -182,7 +187,11 @@
                 "additionalProperties": false,
                 "properties": {
                   "title": { "$ref": "#/$defs/nullableString" },
-                  "group": { "$ref": "#/$defs/nullableString" }
+                  "alt": { "$ref": "#/$defs/nullableString" },
+                  "chapo": { "$ref": "#/$defs/nullableString" },
+                  "description": { "$ref": "#/$defs/nullableString" },
+                  "postscriptum": { "$ref": "#/$defs/nullableString" },
+                  "group": { "$ref": "#/$defs/nullableString", "deprecated": true }
                 }
               }
             }

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace JsonLinesImporter\Tests\Unit;
 
 use JsonLinesImporter\Dto\ImportParameters;
-use JsonLinesImporter\Enum\VideoDestination;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -27,8 +26,7 @@ final class ImportParametersTest extends TestCase
         $parameters = new ImportParameters(
             selectedKeys: ['title', 'images'],
             createProducts: false,
-            videoDestination: VideoDestination::FEATURE,
-            videoFeatureId: 12,
+            videosDirectory: '/var/www/import/videos',
             excludedLines: [3, 7],
         );
 
@@ -36,6 +34,16 @@ final class ImportParametersTest extends TestCase
 
         self::assertEquals($parameters, $copy);
         self::assertTrue($copy->isLineExcluded(7));
-        self::assertSame(VideoDestination::FEATURE, $copy->with(['step' => 4])->videoDestination);
+        self::assertSame('/var/www/import/videos', $copy->with(['step' => 4])->videosDirectory);
+    }
+
+    #[Test]
+    public function theVideoDestinationOfAnOlderImportIsIgnored(): void
+    {
+        $parameters = ImportParameters::fromArray(['video_destination' => 'feature', 'video_feature_id' => 12, 'step' => 3]);
+
+        self::assertSame(3, $parameters->step);
+        self::assertArrayNotHasKey('video_destination', $parameters->toArray());
+        self::assertArrayNotHasKey('video_feature_id', $parameters->toArray());
     }
 }
