@@ -12,7 +12,8 @@ use Thelia\Module\BaseModule;
 use Thelia\Test\IntegrationTestCase;
 
 /**
- * The module activates and deactivates without error, and a second activation leaves its tables alone.
+ * The module activates and deactivates without error, creates the import root of the media read from the
+ * server, and a second activation leaves its tables alone.
  *
  * Prerequisites: a shop test database where the module is registered (module:refresh).
  */
@@ -39,9 +40,13 @@ final class ModuleActivationTest extends IntegrationTestCase
             $instance->deActivate($module);
         }
 
+        // An empty import root is removed so the activation has to create it again.
+        @rmdir(JsonLinesImporter::getMediaSourceRoot());
+
         $instance->activate($this->reloadModule());
         self::assertSame(BaseModule::IS_ACTIVATED, (int) $this->reloadModule()->getActivate());
         $this->assertTablesExist();
+        self::assertDirectoryExists(JsonLinesImporter::getMediaSourceRoot(), 'the import root of the media read from the server');
 
         $instance->deActivate($this->reloadModule());
         self::assertSame(BaseModule::IS_NOT_ACTIVATED, (int) $this->reloadModule()->getActivate());

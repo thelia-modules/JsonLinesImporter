@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JsonLinesImporter\Tests\Integration;
 
 use JsonLinesImporter\Dto\ImportParameters;
+use JsonLinesImporter\JsonLinesImporter;
 use JsonLinesImporter\Model\JsonlImportMediaQuery;
 use JsonLinesImporter\Service\LineReport;
 use JsonLinesImporter\Service\ProductLineFactory;
@@ -35,6 +36,8 @@ final class ProductImageReimportTest extends IntegrationTestCase
 
     private string $directory;
 
+    private string $directoryName;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -50,8 +53,10 @@ final class ProductImageReimportTest extends IntegrationTestCase
         $category->save();
         $this->categoryId = (int) $category->getId();
 
-        $this->directory = sys_get_temp_dir().'/jli-image-'.bin2hex(random_bytes(4));
-        mkdir($this->directory);
+        // Media read from the server lie inside the import root of the shop.
+        $this->directoryName = 'jli-image-'.bin2hex(random_bytes(4));
+        $this->directory = JsonLinesImporter::getMediaSourceRoot().$this->directoryName;
+        mkdir($this->directory, 0o770, true);
         // A real PNG (1x1).
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
 
@@ -95,7 +100,7 @@ final class ProductImageReimportTest extends IntegrationTestCase
     private function write(array $sources): void
     {
         $container = static::getContainer();
-        $parameters = new ImportParameters(fallbackCategoryId: $this->categoryId, imagesDirectory: $this->directory);
+        $parameters = new ImportParameters(fallbackCategoryId: $this->categoryId, imagesDirectory: $this->directoryName);
         $line = $container->get(ProductLineFactory::class)->create(
             [
                 'ref' => self::REF,

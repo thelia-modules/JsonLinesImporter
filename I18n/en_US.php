@@ -6,7 +6,7 @@ return [
     'Choose a .jsonl file of %size% at most.' => 'Choose a .jsonl file of %size% at most.',
     'JSONL import' => 'JSONL import',
     'Only .jsonl files are accepted.' => 'Only .jsonl files are accepted.',
-    'The directory %directory% does not exist or cannot be read.' => 'The directory %directory% does not exist or cannot be read.',
+    'The directory %directory% is not a readable directory of %root%.' => 'The directory %directory% is not a readable directory of %root%.',
     'The file cannot be read.' => 'The file cannot be read.',
     'The file cannot be stored.' => 'The file cannot be stored.',
     'The file is larger than %size%.' => 'The file is larger than %size%.',

@@ -7,17 +7,26 @@ namespace JsonLinesImporter\Tests\Unit;
 use JsonLinesImporter\Enum\MediaKind;
 use JsonLinesImporter\Exception\ImportException;
 use JsonLinesImporter\Service\MediaFetcher;
+use JsonLinesImporter\Service\MediaSourceDirectory;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 final class MediaFetcherTest extends TestCase
 {
+    /** The import root of the shop. */
+    private string $root;
+
     private string $directory;
+
+    private string $outside;
 
     protected function setUp(): void
     {
-        $this->directory = sys_get_temp_dir().'/jli-media-'.bin2hex(random_bytes(4));
-        mkdir($this->directory);
+        $this->root = sys_get_temp_dir().'/jli-media-'.bin2hex(random_bytes(4));
+        $this->directory = $this->root.'/images';
+        $this->outside = $this->root.'-outside';
+        mkdir($this->directory, 0o777, true);
+        mkdir($this->outside);
         // A real PNG (1x1) under a name that would run as PHP.
         file_put_contents($this->directory.'/picture.php', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
         // The file type box an MP4 starts with, enough for the type to be detected.
@@ -26,14 +35,40 @@ final class MediaFetcherTest extends TestCase
 
     protected function tearDown(): void
     {
-        array_map('unlink', glob($this->directory.'/*') ?: []);
+        array_map('unlink', [...(glob($this->directory.'/*') ?: []), ...(glob($this->outside.'/*') ?: [])]);
         rmdir($this->directory);
+        rmdir($this->root);
+        rmdir($this->outside);
+    }
+
+    #[Test]
+    public function aDirectoryOutsideTheImportRootIsNotRead(): void
+    {
+        copy($this->directory.'/picture.php', $this->outside.'/picture.php');
+
+        $this->expectException(ImportException::class);
+
+        $this->fetcher()->fetch('picture.php', MediaKind::IMAGE, $this->outside);
+    }
+
+    #[Test]
+    public function aDirectoryIsGivenRelativeToTheImportRoot(): void
+    {
+        $file = $this->fetcher()->fetch('picture.php', MediaKind::IMAGE, 'images');
+
+        self::assertSame('png', $file->extension());
+        $file->discard();
+    }
+
+    private function fetcher(): MediaFetcher
+    {
+        return new MediaFetcher(null, new MediaSourceDirectory($this->root));
     }
 
     #[Test]
     public function theStoredExtensionComesFromTheDetectedType(): void
     {
-        $file = (new MediaFetcher())->fetch('picture.php', MediaKind::IMAGE, $this->directory);
+        $file = $this->fetcher()->fetch('picture.php', MediaKind::IMAGE, $this->directory);
 
         self::assertSame('png', $file->extension());
         self::assertSame('picture.png', $file->safeName());
@@ -45,7 +80,7 @@ final class MediaFetcherTest extends TestCase
     {
         $this->expectException(ImportException::class);
 
-        (new MediaFetcher())->fetch('/etc/hostname', MediaKind::IMAGE, $this->directory);
+        $this->fetcher()->fetch('/etc/hostname', MediaKind::IMAGE, $this->directory);
     }
 
     #[Test]
@@ -53,7 +88,7 @@ final class MediaFetcherTest extends TestCase
     {
         $this->expectException(ImportException::class);
 
-        (new MediaFetcher())->fetch($this->directory.'/picture.php', MediaKind::IMAGE);
+        $this->fetcher()->fetch($this->directory.'/picture.php', MediaKind::IMAGE);
     }
 
     #[Test]
@@ -62,13 +97,13 @@ final class MediaFetcherTest extends TestCase
         $this->expectException(ImportException::class);
         $this->expectExceptionMessageMatches('/download failed/');
 
-        (new MediaFetcher())->fetch('http://127.0.0.1/image.png', MediaKind::IMAGE);
+        $this->fetcher()->fetch('http://127.0.0.1/image.png', MediaKind::IMAGE);
     }
 
     #[Test]
     public function aVideoIsStoredWithTheExtensionOfItsDetectedType(): void
     {
-        $file = (new MediaFetcher())->fetch('clip.bin', MediaKind::VIDEO, $this->directory);
+        $file = $this->fetcher()->fetch('clip.bin', MediaKind::VIDEO, $this->directory);
 
         self::assertSame('video/mp4', $file->mimeType);
         self::assertSame('clip.mp4', $file->safeName());
@@ -81,6 +116,6 @@ final class MediaFetcherTest extends TestCase
         $this->expectException(ImportException::class);
         $this->expectExceptionMessageMatches('/unexpected content type image\/png/');
 
-        (new MediaFetcher())->fetch('picture.php', MediaKind::VIDEO, $this->directory);
+        $this->fetcher()->fetch('picture.php', MediaKind::VIDEO, $this->directory);
     }
 }

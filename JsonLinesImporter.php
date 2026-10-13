@@ -29,6 +29,13 @@ class JsonLinesImporter extends BaseModule
 
             self::setConfigValue('is_initialized', true);
         }
+
+        // Out of the guard: a shop that activated an earlier version gets it too.
+        $mediaSourceRoot = self::getMediaSourceRoot();
+
+        if (!is_dir($mediaSourceRoot) && !mkdir($mediaSourceRoot, 0o770, true) && !is_dir($mediaSourceRoot)) {
+            throw new \RuntimeException(\sprintf('The import directory %s cannot be created.', $mediaSourceRoot));
+        }
     }
 
     public function destroy(?ConnectionInterface $con = null, $deleteModuleData = false): void
@@ -94,6 +101,15 @@ class JsonLinesImporter extends BaseModule
             ])
             ->autowire(true)
             ->autoconfigure(true);
+    }
+
+    /**
+     * The only directory media given by a path on the server are read from (out of the web root): the
+     * directories declared at step 3 lie inside it.
+     */
+    public static function getMediaSourceRoot(): string
+    {
+        return THELIA_LOCAL_DIR.'import'.DS;
     }
 
     /**

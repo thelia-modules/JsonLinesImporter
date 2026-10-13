@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JsonLinesImporter\Tests\Integration;
 
 use JsonLinesImporter\Dto\ImportParameters;
+use JsonLinesImporter\JsonLinesImporter;
 use JsonLinesImporter\Enum\MediaType;
 use JsonLinesImporter\Model\JsonlImportMediaQuery;
 use JsonLinesImporter\Service\LineReport;
@@ -45,6 +46,8 @@ final class ProductVideoWriteTest extends IntegrationTestCase
 
     private string $directory;
 
+    private string $directoryName;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -60,8 +63,10 @@ final class ProductVideoWriteTest extends IntegrationTestCase
         $category->save();
         $this->categoryId = (int) $category->getId();
 
-        $this->directory = sys_get_temp_dir().'/jli-video-'.bin2hex(random_bytes(4));
-        mkdir($this->directory);
+        // Media read from the server lie inside the import root of the shop.
+        $this->directoryName = 'jli-video-'.bin2hex(random_bytes(4));
+        $this->directory = JsonLinesImporter::getMediaSourceRoot().$this->directoryName;
+        mkdir($this->directory, 0o770, true);
         // A real PNG (1x1), and the file type box an MP4 starts with.
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
         file_put_contents($this->directory.'/front.png', $png);
@@ -174,8 +179,8 @@ final class ProductVideoWriteTest extends IntegrationTestCase
         $container = static::getContainer();
         $parameters = new ImportParameters(
             fallbackCategoryId: $this->categoryId,
-            imagesDirectory: $this->directory,
-            videosDirectory: $this->directory,
+            imagesDirectory: $this->directoryName,
+            videosDirectory: $this->directoryName,
         );
         $line = $container->get(ProductLineFactory::class)->create(
             [

@@ -14,7 +14,7 @@ First public version. Requires Thelia 3.2 and PHP 8.3.
 - Products matched by `ref`: an existing product is updated, a missing one is created, and replaying a file creates no duplicate. Root keys target the default locale of the shop, an `i18n` block wins over them.
 - Sale elements and variants matched by their `ref`, prices by currency, tax rule, categories, brand, features and attribute combinations.
 - Titles of tax rules, categories, brands, features and attributes mapped at step 3 (associate, create hidden, or ignore), memorized for the next imports.
-- Images and documents fetched from public addresses or from a declared server directory, stored with the extension of their detected type, with size and time limits.
+- Images and documents fetched from public addresses or from a directory of `local/import/` declared at step 3, stored with the extension of their detected type, with size and time limits.
 - Videos written as product videos of the core: YouTube, Vimeo and Dailymotion addresses, or video files.
 - Accessories written with their relation type, leaving the other product relations alone.
 - Former address of the product page written as a 301 redirection.

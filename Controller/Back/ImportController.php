@@ -20,6 +20,7 @@ use JsonLinesImporter\Service\DataInventory;
 use JsonLinesImporter\Service\ImportManager;
 use JsonLinesImporter\Service\ImportRunner;
 use JsonLinesImporter\Service\MappingInventory;
+use JsonLinesImporter\Service\MediaSourceDirectory;
 use JsonLinesImporter\Service\ParametersFile;
 use JsonLinesImporter\Service\PreviewBuilder;
 use JsonLinesImporter\Service\ShopContext;
@@ -299,7 +300,7 @@ class ImportController extends BaseAdminController
     }
 
     #[Route('/{importId}/options', name: 'options', requirements: ['importId' => '\d+'], methods: 'GET')]
-    public function options(int $importId, DataInventory $inventory, MappingInventory $mappingInventory): Response
+    public function options(int $importId, DataInventory $inventory, MappingInventory $mappingInventory, MediaSourceDirectory $mediaSourceDirectory): Response
     {
         if (null !== $response = $this->denyUnlessGranted(AccessManager::VIEW)) {
             return $response;
@@ -320,6 +321,7 @@ class ImportController extends BaseAdminController
             'show_images_directory' => $found['local_images'] && $parameters->isKeySelected('images'),
             'show_documents_directory' => $found['local_documents'] && $parameters->isKeySelected('documents'),
             'show_videos_directory' => $found['local_videos'] && $parameters->isKeySelected('videos'),
+            'media_source_root' => $mediaSourceDirectory->root(),
             'show_html_images' => $found['html_images'],
             'library_available' => HtmlImageWriter::isLibraryAvailable(),
             'templates' => $this->templateOptions(),
@@ -327,7 +329,7 @@ class ImportController extends BaseAdminController
     }
 
     #[Route('/{importId}/options', name: 'options_save', requirements: ['importId' => '\d+'], methods: 'POST')]
-    public function saveOptions(int $importId, Request $request, TokenProvider $tokenProvider): Response
+    public function saveOptions(int $importId, Request $request, TokenProvider $tokenProvider, MediaSourceDirectory $mediaSourceDirectory): Response
     {
         if (null !== $response = $this->denyUnlessGrantedWithToken(AccessManager::UPDATE, $request, $tokenProvider)) {
             return $response;
@@ -339,26 +341,25 @@ class ImportController extends BaseAdminController
 
         $form = $request->request;
         $errors = [];
-
-        foreach (['images_directory', 'documents_directory', 'videos_directory'] as $directoryKey) {
-            $directory = trim((string) $form->get($directoryKey, ''));
-
-            if ('' !== $directory && (!is_dir($directory) || !is_readable($directory))) {
-                $errors[] = $this->trans('The directory %directory% does not exist or cannot be read.', ['%directory%' => $directory]);
-            }
-        }
-
-        $this->saveParameters($import, [
+        $changes = [
             'create_products' => $form->getBoolean('create_products'),
             'update_products' => $form->getBoolean('update_products'),
             'default_visible' => $form->getBoolean('default_visible'),
             'template_id' => $form->get('template_id'),
-            'images_directory' => $form->get('images_directory'),
-            'documents_directory' => $form->get('documents_directory'),
-            'videos_directory' => $form->get('videos_directory'),
             'copy_html_images' => $form->getBoolean('copy_html_images'),
-            'step' => [] === $errors ? 4 : 3,
-        ]);
+        ];
+
+        // A refused directory is not saved: the import keeps the previous one.
+        foreach (['images_directory', 'documents_directory', 'videos_directory'] as $directoryKey) {
+            try {
+                $mediaSourceDirectory->resolve($form->get($directoryKey));
+                $changes[$directoryKey] = $form->get($directoryKey);
+            } catch (ImportException $exception) {
+                $errors[] = $this->trans($exception->key(), $exception->parameters());
+            }
+        }
+
+        $this->saveParameters($import, [...$changes, 'step' => [] === $errors ? 4 : 3]);
 
         if ([] !== $errors) {
             return $this->backWithError(self::importPath($import, 'options'), implode(' ', $errors));

@@ -49,18 +49,18 @@
                 <div class="card mb-3">
                     <div class="card-header fw-semibold">{{ 'Media given by a path on the server'|trans({}, d) }}</div>
                     <div class="card-body">
-                        <p class="small text-body-secondary">{{ 'When the path of a file does not exist, its name is looked for in this directory. The files are copied, never moved.'|trans({}, d) }}</p>
+                        <p class="small text-body-secondary">{{ 'Directories of %root%, given relative to it. When the path of a file does not exist, its name is looked for in this directory. The files are copied, never moved.'|trans({'%root%': media_source_root}, d) }}</p>
                         {% if show_images_directory %}
                             <label class="form-label" for="jli-images-dir">{{ 'Directory of the images'|trans({}, d) }}</label>
-                            <input class="form-control mb-2" id="jli-images-dir" name="images_directory" value="{{ parameters.imagesDirectory }}" placeholder="/var/www/import/images">
+                            <input class="form-control mb-2" id="jli-images-dir" name="images_directory" value="{{ parameters.imagesDirectory }}" placeholder="images">
                         {% endif %}
                         {% if show_documents_directory %}
                             <label class="form-label" for="jli-documents-dir">{{ 'Directory of the documents'|trans({}, d) }}</label>
-                            <input class="form-control mb-2" id="jli-documents-dir" name="documents_directory" value="{{ parameters.documentsDirectory }}" placeholder="/var/www/import/documents">
+                            <input class="form-control mb-2" id="jli-documents-dir" name="documents_directory" value="{{ parameters.documentsDirectory }}" placeholder="documents">
                         {% endif %}
                         {% if show_videos_directory %}
                             <label class="form-label" for="jli-videos-dir">{{ 'Directory of the videos'|trans({}, d) }}</label>
-                            <input class="form-control" id="jli-videos-dir" name="videos_directory" value="{{ parameters.videosDirectory }}" placeholder="/var/www/import/videos">
+                            <input class="form-control" id="jli-videos-dir" name="videos_directory" value="{{ parameters.videosDirectory }}" placeholder="videos">
                         {% endif %}
                     </div>
                 </div>

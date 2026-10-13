@@ -18,7 +18,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *
  * The file comes from a file the import trusts no more than its author: downloads never reach a private,
  * loopback or link-local address (redirections included), a path is only read inside the directory
- * declared at step 3, and the stored extension comes from the detected type, never from the source name.
+ * declared at step 3, itself inside the import root of the shop, and the stored extension comes from the
+ * detected type, never from the source name.
  */
 final class MediaFetcher
 {
@@ -26,9 +27,12 @@ final class MediaFetcher
 
     private ?HttpClientInterface $httpClient;
 
-    public function __construct(?HttpClientInterface $httpClient = null)
+    private MediaSourceDirectory $directories;
+
+    public function __construct(?HttpClientInterface $httpClient = null, ?MediaSourceDirectory $directories = null)
     {
         $this->httpClient = null === $httpClient ? null : new NoPrivateNetworkHttpClient($httpClient);
+        $this->directories = $directories ?? new MediaSourceDirectory();
     }
 
     public static function isRemote(string $source): bool
@@ -37,7 +41,7 @@ final class MediaFetcher
     }
 
     /**
-     * @param string|null $directory the only directory a path on the server may be read from
+     * @param string|null $directory the only directory a path on the server may be read from, inside the import root
      *
      * @throws ImportException with a message for the line report
      */
@@ -109,9 +113,13 @@ final class MediaFetcher
 
     private function copy(string $path, MediaKind $kind, ?string $directory): FetchedFile
     {
-        $root = null === $directory ? false : realpath($directory);
+        try {
+            $root = $this->directories->resolve($directory);
+        } catch (ImportException $exception) {
+            throw new ImportException(\sprintf('%s: %s', $path, $exception->getMessage()));
+        }
 
-        if (false === $root || !is_dir($root)) {
+        if (null === $root) {
             throw new ImportException(\sprintf('%s: a path on the server needs the directory of the media to be set at step 3', $path));
         }
 
