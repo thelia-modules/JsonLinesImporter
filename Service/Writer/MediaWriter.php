@@ -103,6 +103,17 @@ final readonly class MediaWriter
         /** @var list<MediaLine> $medias */
         $medias = $field->value ?? [];
 
+        foreach ($medias as $media) {
+            $hash = MediaProvenance::hash($media->source);
+
+            if (isset($fetched[$type->value.':'.$hash]) || null !== $this->existingObject($type, $productId, $media->source)) {
+                $keptHashes[$hash] = true;
+            }
+        }
+
+        // Removed first: the core closes the gap a media leaves, which would shift the positions written below.
+        $this->removeMediaNotIn($type, $productId, $keptHashes, $files, $con);
+
         foreach ($medias as $index => $media) {
             $hash = MediaProvenance::hash($media->source);
             $object = $this->existingObject($type, $productId, $media->source);
@@ -118,8 +129,6 @@ final readonly class MediaWriter
                 $object = $this->createObject($type, $product, $file, $files, $con);
                 $this->provenance->record($type, $productId, $media->source, (int) $object->getId());
             }
-
-            $keptHashes[$hash] = true;
 
             if ($media->visible->present || $isNew) {
                 $object->setVisible((int) $media->visible->or(true));
@@ -149,6 +158,12 @@ final readonly class MediaWriter
             }
         }
 
+        return $keys;
+    }
+
+    /** @param array<string, true> $keptHashes */
+    private function removeMediaNotIn(MediaType $type, int $productId, array $keptHashes, FileOperations $files, ConnectionInterface $con): void
+    {
         foreach ($this->provenance->findAll($type, $productId) as $record) {
             if (isset($keptHashes[$record->getSourceHash()])) {
                 continue;
@@ -163,8 +178,6 @@ final readonly class MediaWriter
 
             $record->delete($con);
         }
-
-        return $keys;
     }
 
     private function createObject(MediaType $type, Product $product, FetchedFile $file, FileOperations $files, ConnectionInterface $con): ProductImage|ProductDocument
