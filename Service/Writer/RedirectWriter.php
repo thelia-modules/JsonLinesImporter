@@ -6,6 +6,7 @@ namespace JsonLinesImporter\Service\Writer;
 
 use JsonLinesImporter\Dto\ProductLine;
 use JsonLinesImporter\Service\LineReport;
+use JsonLinesImporter\Service\ReservedPathGuard;
 use JsonLinesImporter\Service\UrlPathNormalizer;
 use Propel\Runtime\ActiveQuery\Criteria;
 use Propel\Runtime\Connection\ConnectionInterface;
@@ -23,11 +24,14 @@ use Thelia\Tools\URL;
  * (accents converted, non ASCII characters dropped: "m²" becomes "m") so the router, which compares the
  * decoded request path, would never find it; and its postInsert() points every other redirection of the
  * product at the new row, the new row included.
+ *
+ * An address a page of the shop answers is never taken: the rewriting router runs first and would hide the page.
  */
 final readonly class RedirectWriter
 {
     public function __construct(
         private UrlPathNormalizer $normalizer,
+        private ReservedPathGuard $reservedPathGuard,
     ) {
     }
 
@@ -80,6 +84,12 @@ final readonly class RedirectWriter
     private function redirect(string $path, RewritingUrl $current, LineReport $report, ConnectionInterface $con): bool
     {
         if ($path === $current->getUrl()) {
+            return false;
+        }
+
+        if ($this->reservedPathGuard->isReserved($path)) {
+            $report->warn(\sprintf('Redirection /%s not created: the address is a page of the shop', $path));
+
             return false;
         }
 

@@ -6,6 +6,7 @@ namespace JsonLinesImporter\Tests\Integration;
 
 use JsonLinesImporter\Dto\ImportParameters;
 use JsonLinesImporter\Model\JsonlImport;
+use JsonLinesImporter\Model\JsonlImportLineQuery;
 use JsonLinesImporter\Model\JsonlImportMappingQuery;
 use JsonLinesImporter\Service\AnalysisService;
 use JsonLinesImporter\Service\ImportManager;
@@ -106,6 +107,18 @@ final class ImportRoundTripTest extends IntegrationTestCase
         self::assertSame(2, RewritingUrlQuery::create()->filterByUrl(['products/round-trip/', 'products/round-trip'])->count(), 'a replay adds no redirection');
     }
 
+    #[Test]
+    public function anAddressOfTheShopNeverBecomesARedirection(): void
+    {
+        $import = $this->import([['ref' => self::REF, 'title' => 'Round trip', 'price' => 10, 'url' => '/admin/login']]);
+
+        self::assertSame(1, (int) $import->getCreatedCount());
+        self::assertSame(0, RewritingUrlQuery::create()->filterByUrl('admin/login')->count());
+
+        $line = JsonlImportLineQuery::create()->filterByImportId($import->getId())->findOne();
+        self::assertContains('Redirection /admin/login not created: the address is a page of the shop', $line->getWarningList());
+    }
+
     /** @param list<array<string, mixed>> $lines */
     private function import(array $lines): JsonlImport
     {
@@ -138,7 +151,7 @@ final class ImportRoundTripTest extends IntegrationTestCase
 
         if (null !== $product) {
             RewritingUrlQuery::create()->filterByView('product')->filterByViewId((string) $product->getId())->filterByRedirected(null, \Propel\Runtime\ActiveQuery\Criteria::ISNOTNULL)->update(['Redirected' => null]);
-            RewritingUrlQuery::create()->filterByUrl(['products/round-trip/', 'products/round-trip'])->delete();
+            RewritingUrlQuery::create()->filterByUrl(['products/round-trip/', 'products/round-trip', 'admin/login'])->filterByView('product')->delete();
             $product->delete();
         }
 
