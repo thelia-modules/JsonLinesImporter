@@ -8,7 +8,7 @@ Each line is a product object validated against the JSON Schema `Config/schema/p
 
 - Thelia 3.2 or later (typed product relations, product videos), default-twig back-office
 - PHP 8.3+
-- `opis/json-schema` ^2.6
+- `opis/json-schema` ^2.6, `symfony/html-sanitizer` ^7.4
 - Optional: TheliaLibrary (images of the HTML fields copied to the media library)
 
 ## Installation
@@ -21,7 +21,7 @@ php Thelia module:refresh
 php Thelia module:activate JsonLinesImporter
 ```
 
-A copy placed by hand in `local/modules/JsonLinesImporter` is not installed by Composer: add its dependency to the shop first (`composer require opis/json-schema:^2.6`).
+A copy placed by hand in `local/modules/JsonLinesImporter` is not installed by Composer: add its dependencies to the shop first (`composer require opis/json-schema:^2.6 symfony/html-sanitizer:^7.4`).
 
 The activation creates four tables: `jsonl_import`, `jsonl_import_line`, `jsonl_import_mapping`, `jsonl_import_media`. Uploaded files are kept in `local/media/jsonl-imports/`. The activation also creates `local/import/`, the only directory media given by a path on the server are read from: place the files there, or link a directory from there.
 
@@ -41,6 +41,7 @@ The activation creates four tables: `jsonl_import`, `jsonl_import_line`, `jsonl_
 - Images and videos share one order on the product sheet: the videos of a line come after the images and the videos added by hand, in the order of their `position`.
 - The `group` key of a video, used by the former Thelia Blocks destination, is still accepted and ignored. Videos written by the former destinations (video blocks of Thelia Blocks, value of a feature) are no longer managed by the module: delete them by hand if needed. The former video feature is no longer left out of the features of a line, so its value is removed at the next import of a line carrying `features`.
 - `url` is the old address of the page: it becomes a 301 redirection to the current URL of the product, stored decoded, with and without its trailing slash. An address a page of the shop answers is never taken and is reported: the back office and the API (`admin`, `api`), a route of the shop or of a module, a template of the active front theme (`login`, `register`, `search`…).
+- The HTML of `chapo`, `description` and `postscriptum`, for the product and for its images and documents, is cleaned before it is written: what could run in a browser (scripts, event attributes, `javascript:` links, frames, forms, style attributes) is removed and each cleaned field is reported. The front theme prints these fields as is, and a file comes from a supplier or a PIM rather than from an administrator. Ticking "Trust the HTML of the file" at step 3 writes it unchanged.
 - Titles of tax rules, categories, brands, features and attributes are mapped at step 3 (associate, create hidden, or ignore); the choices are memorized for the next imports.
 
 ## Back-office

@@ -347,6 +347,7 @@ class ImportController extends BaseAdminController
             'default_visible' => $form->getBoolean('default_visible'),
             'template_id' => $form->get('template_id'),
             'copy_html_images' => $form->getBoolean('copy_html_images'),
+            'trust_html' => $form->getBoolean('trust_html'),
         ];
 
         // A refused directory is not saved: the import keeps the previous one.

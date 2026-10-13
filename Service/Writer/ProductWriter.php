@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace JsonLinesImporter\Service\Writer;
 
+use JsonLinesImporter\Dto\Field;
 use JsonLinesImporter\Dto\I18nBag;
 use JsonLinesImporter\Dto\ImportParameters;
+use JsonLinesImporter\Dto\MediaLine;
 use JsonLinesImporter\Dto\ProductLine;
 use JsonLinesImporter\Enum\LineAction;
 use JsonLinesImporter\Enum\ReferentialType;
 use JsonLinesImporter\Exception\ImportException;
+use JsonLinesImporter\Service\HtmlFieldSanitizer;
 use JsonLinesImporter\Service\LineReport;
 use JsonLinesImporter\Service\ReferentialResolver;
 use JsonLinesImporter\Service\ShopContext;
@@ -38,6 +41,7 @@ final readonly class ProductWriter
         private RedirectWriter $redirectWriter,
         private HtmlImageWriter $htmlImageWriter,
         private AccessoryWriter $accessoryWriter,
+        private HtmlFieldSanitizer $htmlSanitizer,
     ) {
     }
 
@@ -63,7 +67,12 @@ final readonly class ProductWriter
         }
 
         if ($parameters->copyHtmlImages) {
-            $line = $this->withI18n($line, $this->htmlImageWriter->rewrite($line->i18n, $report));
+            $line = $this->with($line, i18n: $this->htmlImageWriter->rewrite($line->i18n, $report));
+        }
+
+        // After the copy of the images: the HTML written is the one cleaned.
+        if (!$parameters->trustHtml) {
+            $line = $this->withHtmlSanitized($line, $report);
         }
 
         $fetched = $this->mediaWriter->prepare($line, $product?->getId(), $parameters, $report)
@@ -291,14 +300,37 @@ final readonly class ProductWriter
         return $taxRuleId;
     }
 
-    private function withI18n(ProductLine $line, I18nBag $i18n): ProductLine
+    private function withHtmlSanitized(ProductLine $line, LineReport $report): ProductLine
+    {
+        $medias = fn (Field $field): Field => $field->hasValue()
+            ? Field::of(array_map(
+                fn (MediaLine $media): MediaLine => new MediaLine(
+                    $media->key,
+                    $media->source,
+                    $media->visible,
+                    $media->position,
+                    $this->htmlSanitizer->sanitize($media->i18n, $report, $media->source),
+                ),
+                $field->value,
+            ))
+            : $field;
+
+        return $this->with(
+            $line,
+            i18n: $this->htmlSanitizer->sanitize($line->i18n, $report, 'the product'),
+            images: $medias($line->images),
+            documents: $medias($line->documents),
+        );
+    }
+
+    private function with(ProductLine $line, ?I18nBag $i18n = null, ?Field $images = null, ?Field $documents = null): ProductLine
     {
         return new ProductLine(
             ref: $line->ref,
             visible: $line->visible,
             virtual: $line->virtual,
             position: $line->position,
-            i18n: $i18n,
+            i18n: $i18n ?? $line->i18n,
             titleSelected: $line->titleSelected,
             urls: $line->urls,
             sale: $line->sale,
@@ -307,8 +339,8 @@ final readonly class ProductWriter
             brand: $line->brand,
             features: $line->features,
             variants: $line->variants,
-            images: $line->images,
-            documents: $line->documents,
+            images: $images ?? $line->images,
+            documents: $documents ?? $line->documents,
             videos: $line->videos,
             accessories: $line->accessories,
         );

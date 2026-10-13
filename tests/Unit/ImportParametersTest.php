@@ -26,7 +26,8 @@ final class ImportParametersTest extends TestCase
         $parameters = new ImportParameters(
             selectedKeys: ['title', 'images'],
             createProducts: false,
-            videosDirectory: '/var/www/import/videos',
+            videosDirectory: 'videos',
+            trustHtml: true,
             excludedLines: [3, 7],
         );
 
@@ -34,7 +35,9 @@ final class ImportParametersTest extends TestCase
 
         self::assertEquals($parameters, $copy);
         self::assertTrue($copy->isLineExcluded(7));
-        self::assertSame('/var/www/import/videos', $copy->with(['step' => 4])->videosDirectory);
+        self::assertSame('videos', $copy->with(['step' => 4])->videosDirectory);
+        self::assertTrue($copy->trustHtml);
+        self::assertFalse((new ImportParameters())->trustHtml, 'the HTML of a file is not trusted by default');
     }
 
     #[Test]

@@ -26,6 +26,8 @@ final readonly class ImportParameters
         public ?string $documentsDirectory = null,
         public ?string $videosDirectory = null,
         public bool $copyHtmlImages = false,
+        /** the HTML of the file is written as is, unsafe markup included */
+        public bool $trustHtml = false,
         public array $excludedLines = [],
         /** last wizard step reached, 1 to 5 */
         public int $step = 1,
@@ -46,6 +48,7 @@ final readonly class ImportParameters
             documentsDirectory: self::stringOrNull($data['documents_directory'] ?? null),
             videosDirectory: self::stringOrNull($data['videos_directory'] ?? null),
             copyHtmlImages: (bool) ($data['copy_html_images'] ?? false),
+            trustHtml: (bool) ($data['trust_html'] ?? false),
             excludedLines: array_values(array_map('intval', (array) ($data['excluded_lines'] ?? []))),
             step: max(1, min(5, (int) ($data['step'] ?? 1))),
         );
@@ -65,6 +68,7 @@ final readonly class ImportParameters
             'documents_directory' => $this->documentsDirectory,
             'videos_directory' => $this->videosDirectory,
             'copy_html_images' => $this->copyHtmlImages,
+            'trust_html' => $this->trustHtml,
             'excluded_lines' => $this->excludedLines,
             'step' => $this->step,
         ];

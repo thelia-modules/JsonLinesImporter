@@ -17,7 +17,8 @@ First public version. Requires Thelia 3.2 and PHP 8.3.
 - Images and documents fetched from public addresses or from a directory of `local/import/` declared at step 3, stored with the extension of their detected type, with size and time limits.
 - Videos written as product videos of the core: YouTube, Vimeo and Dailymotion addresses, or video files.
 - Accessories written with their relation type, leaving the other product relations alone.
-- Former address of the product page written as a 301 redirection.
+- HTML of the descriptions cleaned of what could run in a browser, unless the file is trusted at step 3.
+- Former address of the product page written as a 301 redirection, never on an address a page of the shop answers.
 - Analysis and import run in resumable HTTP batches, one import at a time.
 - Console command `jsonlinesimporter:import` replaying an import with the parameters exported by the wizard, with a `--dry-run` option.
 

@@ -82,6 +82,17 @@
                 </div>
             {% endif %}
 
+            <div class="card mb-3">
+                <div class="card-header fw-semibold">{{ 'HTML of the descriptions'|trans({}, d) }}</div>
+                <div class="card-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" name="trust_html" value="1" id="jli-trust-html" {{ parameters.trustHtml ? 'checked' }}>
+                        <label class="form-check-label" for="jli-trust-html">{{ 'Trust the HTML of the file'|trans({}, d) }}</label>
+                    </div>
+                    <div class="form-text">{{ 'Unticked, what could run in a browser (scripts, event attributes, javascript: links, frames, forms, styles) is removed from the chapo, the description and the postscriptum of the products and of their media. Tick it only for a file you trust: its HTML is written as is and shown on the shop.'|trans({}, d) }}</div>
+                </div>
+            </div>
+
             <button type="submit" class="btn btn-primary" data-testid="jli-next">
                 {{ 'Next: preview'|trans({}, d) }} <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </button>
