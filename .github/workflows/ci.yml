@@ -1,0 +1,186 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  tests:
+    name: Tests on a fresh Thelia 3 shop (PHP ${{ matrix.php }}, Thelia ${{ matrix.thelia }})
+    runs-on: ubuntu-latest
+    # A green run takes ~10 minutes; anything beyond this is a hang, fail fast.
+    timeout-minutes: 30
+    # The `main` axis proves the module against the tip of the core, the way the
+    # thelia/thelia repository tests itself. The core moves faster than this module
+    # releases, so that axis is informative: it annotates the run without failing it.
+    continue-on-error: ${{ matrix.thelia == 'main' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php: [ '8.3', '8.4' ]
+        # `release`: what `composer create-project thelia/thelia-project` gives a shop today.
+        # `main`: the core, its schema and the themes resolved from their development branch.
+        thelia: [ release ]
+        include:
+          - php: '8.4'
+            thelia: main
+    env:
+      SHOP_DIR: ${{ github.workspace }}/shop
+      # Without a token, Flex silently skips the thelia/thelia-recipes endpoint and
+      # the GitHub archives the `main` axis downloads from are rate limited per runner IP.
+      COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
+      # The runner ships MySQL pre-installed (root/root on 127.0.0.1:3306). Real
+      # environment variables win over the .env files, so every step that touches the
+      # database (bin/install, the Thelia console, PHPUnit) sees the same credentials.
+      DATABASE_HOST: 127.0.0.1
+      DATABASE_PORT: '3306'
+      DATABASE_USER: root
+      DATABASE_PASSWORD: root
+      DATABASE_NAME: test
+    steps:
+      - name: Checkout the module
+        uses: actions/checkout@v5
+        with:
+          path: module
+
+      - name: Start MySQL
+        run: sudo systemctl start mysql.service
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          ini-values: post_max_size=20M
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql, gd, zip
+
+      - name: Validate the module composer manifest
+        run: composer validate --strict --no-check-publish
+        working-directory: module
+
+      - name: Create a fresh shop
+        # --no-install: the dependencies are resolved once, below, after the module and
+        # the Thelia packages under test are added to the manifest.
+        run: composer create-project thelia/thelia-project "$SHOP_DIR" --no-interaction --no-install --no-progress
+
+      - name: Resolve the Thelia packages from their development branch
+        if: matrix.thelia == 'main'
+        working-directory: ${{ env.SHOP_DIR }}
+        # The core, its database schema (thelia/setup) and its configuration
+        # (thelia/config) live in the same monorepo and are released together: they are
+        # resolved from the same branch tip so the Propel models and the SQL schema
+        # describe the same tables. The themes follow, as in the core CI: a core ahead
+        # of its release against released themes is a combination nobody runs.
+        #
+        # The `as` alias keeps the released constraints of thelia/thelia-skeleton and
+        # of every package that requires the core or a theme by version satisfiable.
+        run: |
+          composer require --no-update --no-scripts --no-audit \
+            "thelia/core:dev-main as 3.99.0" \
+            "thelia/setup:dev-main as 3.99.0" \
+            "thelia/config:dev-main as 3.99.0" \
+            "thelia/flexy:dev-main as 1.99.0" \
+            "thelia/backoffice-default-twig-template:dev-main as 1.99.0" \
+            "thelia/email-default-template:dev-main as 1.99.0" \
+            "thelia/pdf-default-template:dev-main as 1.99.0"
+
+      - name: Pin the database schema to the released core
+        if: matrix.thelia == 'release'
+        working-directory: ${{ env.SHOP_DIR }}
+        # thelia/core requires that thelia/setup and thelia/config be pinned to the minor
+        # version of the core that will be installed. Thus, a new installation uses the
+        # most recent tag for each. The schema and demo data for thelia/setup are
+        # generated from the Propel models in the core at the time of the same commit:
+        # a more recent configuration describes columns that the released version of
+        # thelia/core does not recognize.
+        run: |
+          # The listing puts the branch alias (3.0.x-dev) first: keep the newest stable tag,
+          # the one prefer-stable will pick.
+          core=$(composer show thelia/core --available --format=json | php -r '$stable = array_values(array_filter(json_decode(stream_get_contents(STDIN), true)["versions"], static fn (string $v): bool => (bool) preg_match("/^\d+\.\d+\.\d+$/", $v))); echo $stable[0] ?? "";')
+          [ -n "$core" ] || { echo "::error::no stable release of thelia/core found"; exit 1; }
+          minor=$(php -r 'preg_match("/^(\d+\.\d+)\./", $argv[1], $m); echo $m[1];' "$core")
+          echo "thelia/core will resolve to $core: pinning thelia/setup and thelia/config to ~$minor.0"
+          composer require --no-update --no-scripts --no-audit \
+            "thelia/setup:~$minor.0" \
+            "thelia/config:~$minor.0"
+
+      - name: Add the module from the checkout and install the shop dependencies
+        working-directory: ${{ env.SHOP_DIR }}
+        # The shop has no committed lock file, so one `update` resolves everything at once,
+        # opis/json-schema included.
+        run: |
+          composer config repositories.json-lines-importer-module path "$GITHUB_WORKSPACE/module"
+          composer require --no-update --no-scripts --no-audit "thelia/json-lines-importer-module:@dev"
+          composer require --no-update --no-scripts --no-audit --dev "phpunit/phpunit:^11.5"
+          composer update --no-interaction --no-progress --prefer-dist
+
+      - name: Check that the core, its schema and its configuration are consistent
+        working-directory: ${{ env.SHOP_DIR }}
+        # The failure this guards against surfaces late and cryptically otherwise: a
+        # Propel "Unable to execute INSERT statement" in the middle of the demo import.
+        # `main`: every package must be a development version (a package that declares a
+        # branch-alias reports the alias, e.g. 3.0.x-dev, not dev-main).
+        # `release`: thelia/setup and thelia/config must share the minor of thelia/core.
+        run: |
+          show_version() { composer show "$1" --format=json | php -r 'echo json_decode(stream_get_contents(STDIN), true)["versions"][0];'; }
+          minor_of() { php -r 'preg_match("/^v?(\d+\.\d+)\./", $argv[1], $m); echo $m[1] ?? $argv[1];' "$1"; }
+          for package in core setup config flexy backoffice-default-twig-template email-default-template pdf-default-template; do
+            echo "thelia/$package -> $(show_version thelia/$package)"
+          done
+          if [ "${{ matrix.thelia }}" = "main" ]; then
+            for package in core setup config flexy backoffice-default-twig-template email-default-template pdf-default-template; do
+              version=$(show_version "thelia/$package")
+              case "$version" in dev-*|*-dev) ;; *) echo "::error::thelia/$package resolved to $version, expected a development version"; exit 1 ;; esac
+            done
+          else
+            core=$(minor_of "$(show_version thelia/core)")
+            for package in setup config; do
+              version=$(show_version "thelia/$package")
+              if [ "$(minor_of "$version")" != "$core" ]; then
+                echo "::error::thelia/$package $version does not match thelia/core $core.x: the SQL schema and the Propel models would describe different tables"
+                exit 1
+              fi
+            done
+          fi
+
+      - name: Unit tests
+        # The module is symlinked into the shop: the bootstrap gets the shop autoloader explicitly.
+        #
+        # -d auto_prepend_file: the PHPUnit entry script requires the Composer autoloader
+        # before it reads any configuration, and the autoloader pulls in
+        # vendor/thelia/core/bootstrap.php, which derives THELIA_ROOT from its own location
+        # under vendor/. The shop root bootstrap.php holds the real path constants and only
+        # wins by being loaded first, which no PHPUnit bootstrap file can do: a prepended
+        # file is the one hook that runs before the entry script.
+        working-directory: ${{ env.SHOP_DIR }}
+        env:
+          THELIA_VENDOR_AUTOLOAD: ${{ env.SHOP_DIR }}/vendor/autoload.php
+        run: php -d auto_prepend_file=./bootstrap.php vendor/bin/phpunit -c "$GITHUB_WORKSPACE/module/phpunit.xml.dist" --testsuite unit
+
+      - name: Install the shop
+        working-directory: ${{ env.SHOP_DIR }}
+        env:
+          APP_ENV: test
+        run: php bin/install --frontoffice_theme=flexy --backoffice_theme=default-twig --pdf_theme=default --email_theme=default --with-demo --skip-demo-images --with-admin --admin_login=thelia --admin_password=thelia --admin_first_name=thelia --admin_last_name=thelia --admin_email=thelia@example.com
+
+      - name: Activate the module
+        working-directory: ${{ env.SHOP_DIR }}
+        # The integration tests skip themselves when the module is not active: activating it
+        # here creates its tables in the test database.
+        env:
+          APP_ENV: test
+        run: |
+          php Thelia module:refresh
+          php Thelia module:activate JsonLinesImporter
+
+      - name: Integration tests
+        working-directory: ${{ env.SHOP_DIR }}
+        # -d auto_prepend_file: see the unit step. Without it the kernel boots on a
+        # THELIA_ROOT pointing inside vendor/ and Propel looks for the core schema under
+        # vendor/thelia/vendor/thelia/config/.
+        # --fail-on-skipped: a module left inactive would otherwise turn every test into a
+        # skip and the run green.
+        env:
+          APP_ENV: test
+          THELIA_VENDOR_AUTOLOAD: ${{ env.SHOP_DIR }}/vendor/autoload.php
+        run: php -d auto_prepend_file=./bootstrap.php vendor/bin/phpunit -c "$GITHUB_WORKSPACE/module/phpunit.xml.dist" --testsuite integration --fail-on-skipped
