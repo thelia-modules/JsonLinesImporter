@@ -22,11 +22,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class MediaFetcher
 {
-    public const MAX_BYTES = 20 * 1024 * 1024;
-
     private const IDLE_TIMEOUT_SECONDS = 20;
-
-    private const MAX_DURATION_SECONDS = 60;
 
     private ?HttpClientInterface $httpClient;
 
@@ -49,7 +45,7 @@ final class MediaFetcher
     {
         $source = trim($source);
 
-        $file = self::isRemote($source) ? $this->download($source) : $this->copy($source, $directory);
+        $file = self::isRemote($source) ? $this->download($source, $kind) : $this->copy($source, $kind, $directory);
 
         $mimeType = (string) (new \finfo(\FILEINFO_MIME_TYPE))->file($file->temporaryPath);
         $extension = $kind->extensions()[$mimeType] ?? null;
@@ -63,7 +59,7 @@ final class MediaFetcher
         return new FetchedFile($file->temporaryPath, $file->originalName, $mimeType, $extension);
     }
 
-    private function download(string $url): FetchedFile
+    private function download(string $url, MediaKind $kind): FetchedFile
     {
         $temporaryPath = $this->temporaryPath();
         $handle = fopen($temporaryPath, 'w');
@@ -71,7 +67,7 @@ final class MediaFetcher
         try {
             $response = $this->httpClient()->request('GET', $url, [
                 'timeout' => self::IDLE_TIMEOUT_SECONDS,
-                'max_duration' => self::MAX_DURATION_SECONDS,
+                'max_duration' => $kind->maxDurationSeconds(),
                 'max_redirects' => 5,
             ]);
 
@@ -84,10 +80,10 @@ final class MediaFetcher
             foreach ($this->httpClient()->stream($response) as $chunk) {
                 $size += \strlen($chunk->getContent());
 
-                if ($size > self::MAX_BYTES) {
+                if ($size > $kind->maxBytes()) {
                     $response->cancel();
 
-                    throw new ImportException(\sprintf('%s: larger than %d MB', $url, self::MAX_BYTES / 1024 / 1024));
+                    throw new ImportException(\sprintf('%s: larger than %d MB', $url, $kind->maxBytes() / 1024 / 1024));
                 }
 
                 fwrite($handle, $chunk->getContent());
@@ -111,7 +107,7 @@ final class MediaFetcher
         return new FetchedFile($temporaryPath, '' === $name ? 'file' : $name, '');
     }
 
-    private function copy(string $path, ?string $directory): FetchedFile
+    private function copy(string $path, MediaKind $kind, ?string $directory): FetchedFile
     {
         $root = null === $directory ? false : realpath($directory);
 
@@ -130,8 +126,8 @@ final class MediaFetcher
             throw new ImportException(\sprintf('%s: file not found in the directory of the media', $path));
         }
 
-        if (filesize($candidate) > self::MAX_BYTES) {
-            throw new ImportException(\sprintf('%s: larger than %d MB', $path, self::MAX_BYTES / 1024 / 1024));
+        if (filesize($candidate) > $kind->maxBytes()) {
+            throw new ImportException(\sprintf('%s: larger than %d MB', $path, $kind->maxBytes() / 1024 / 1024));
         }
 
         $temporaryPath = $this->temporaryPath();

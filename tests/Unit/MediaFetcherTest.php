@@ -20,6 +20,8 @@ final class MediaFetcherTest extends TestCase
         mkdir($this->directory);
         // A real PNG (1x1) under a name that would run as PHP.
         file_put_contents($this->directory.'/picture.php', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+        // The file type box an MP4 starts with, enough for the type to be detected.
+        file_put_contents($this->directory.'/clip.bin', "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom".str_repeat("\x00", 64));
     }
 
     protected function tearDown(): void
@@ -61,5 +63,24 @@ final class MediaFetcherTest extends TestCase
         $this->expectExceptionMessageMatches('/download failed/');
 
         (new MediaFetcher())->fetch('http://127.0.0.1/image.png', MediaKind::IMAGE);
+    }
+
+    #[Test]
+    public function aVideoIsStoredWithTheExtensionOfItsDetectedType(): void
+    {
+        $file = (new MediaFetcher())->fetch('clip.bin', MediaKind::VIDEO, $this->directory);
+
+        self::assertSame('video/mp4', $file->mimeType);
+        self::assertSame('clip.mp4', $file->safeName());
+        $file->discard();
+    }
+
+    #[Test]
+    public function anImageIsNotAcceptedAsAVideo(): void
+    {
+        $this->expectException(ImportException::class);
+        $this->expectExceptionMessageMatches('/unexpected content type image\/png/');
+
+        (new MediaFetcher())->fetch('picture.php', MediaKind::VIDEO, $this->directory);
     }
 }
