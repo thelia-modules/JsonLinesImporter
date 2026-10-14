@@ -2,32 +2,87 @@
 
 declare(strict_types=1);
 
-// The unit suite runs on the module's own vendor (composer install at the module root): it needs
+// The unit suite runs on the module's owvendor (composer install at the module root): it needs
 // opis/json-schema and PHPUnit, never the core. The integration suite runs from a shop, whose
 // autoloader (THELIA_VENDOR_AUTOLOAD, or the shop the module is installed in) provides the core.
 $candidates = array_filter([
     getenv('THELIA_VENDOR_AUTOLOAD') ?: null,
-    // composer install at the module root
-    dirname(__DIR__).'/vendor/autoload.php',
     // local/modules/JsonLinesImporter
     __DIR__.'/../../../../vendor/autoload.php',
     // vendor/thelia/modules/JsonLinesImporter
     __DIR__.'/../../../../../vendor/autoload.php',
+    // composer install at the module root
+    dirname(__DIR__).'/vendor/autoload.php',
 ]);
+
+$autoload = null;
 
 foreach ($candidates as $candidate) {
     if (is_file($candidate)) {
-        $loader = require $candidate;
-
-        // A shop autoloader does not know the module namespace: Thelia registers it at boot.
-        if ($loader instanceof Composer\Autoload\ClassLoader) {
-            $loader->addPsr4('JsonLinesImporter\\', dirname(__DIR__).'/');
-            $loader->addPsr4('JsonLinesImporter\\Tests\\', __DIR__.'/');
-        }
-
-        return;
+        $autoload = $candidate;
+        break;
     }
 }
 
-fwrite(\STDERR, "No vendor/autoload.php found: run composer install at the module root, or set THELIA_VENDOR_AUTOLOAD.\n");
-exit(1);
+if ($autoload === null) {
+    fwrite(\STDERR, "No vendor/autoload.php found: install the module in a shop, run composer install at the module root, or set THELIA_VENDOR_AUTOLOAD.\n");
+    exit(1);
+}
+
+// The core bootstrap (autoloaded with the vendor) derives THELIA_ROOT from its own
+// location, which is vendor/thelia/ in a shop installed by Composer: the shop defines
+// the constants in its root bootstrap.php before loading the vendor, so do the same.
+$shopRoot = dirname($autoload, 2);
+$shopBootstrap = $shopRoot . '/bootstrap.php';
+
+if (is_file($shopBootstrap)) {
+    require $shopBootstrap;
+}
+
+$loader = require $autoload;
+
+// Reached only when something loaded the autoloader before this file: the PHPUnit entry
+// script does, before it reads any configuration, so the require above came too late and
+// the path constants are already the ones the core derived from vendor/. Nothing can undo
+// a define(), and the kernel would boot looking for the core schema under
+// vendor/thelia/vendor/thelia/config/: say what to run instead.
+$vendorDirectory = realpath(dirname($autoload)) . DIRECTORY_SEPARATOR;
+
+if (is_file($shopBootstrap) && defined('THELIA_ROOT') && str_starts_with((string) realpath(THELIA_ROOT), $vendorDirectory)) {
+    fwrite(\STDERR, sprintf(
+        "THELIA_ROOT is %s, inside the vendor directory, so the path constants all point below it.\n"
+        . "The Composer autoloader was loaded before the shop bootstrap.php. Prepend it to the PHPUnit entry script:\n"
+        . "  php -d auto_prepend_file=%s vendor/bin/phpunit -c <module>/phpunit.xml.dist --testsuite integration\n",
+        THELIA_ROOT,
+        $shopBootstrap,
+    ));
+    exit(1);
+}
+
+// The shop kernel reads its parameters from the environment (DEFAULT_URI, LOCK_DSN): load the
+// shop .env the way the shop front controllers do. Real environment variables still win.
+// The shop kernel reads its parameters from the environment (DEFAULT_URI, the database):
+// load the shop .env the way the shop test bootstrap does. In test mode D·
+$shopEnvFile = dirname($autoload, 2).'/.env';
+
+if (is_file($shopEnvFile) && class_exists(\Symfony\Component\Dotenv\Dotenv::class)) {
+    (new \Symfony\Component\Dotenv\Dotenv())->bootEnv($shopEnvFile);
+
+    $shopEnvLocalFile = $shopEnvFile . '.local';
+
+    if (empty($_SERVER['DATABASE_HOST']) && is_file($shopEnvLocalFile)) {
+        $localVariables = (new \Symfony\Component\Dotenv\Dotenv())->parse((string) file_get_contents($shopEnvLocalFile));
+
+        foreach (['DATABASE_HOST', 'DATABASE_PORT', 'DATABASE_NAME', 'DATABASE_USER', 'DATABASE_PASSWORD'] as $key) {
+            if (isset($localVariables[$key]) && empty($_SERVER[$key])) {
+                $_SERVER[$key] = $_ENV[$key] = $localVariables[$key];
+            }
+        }
+    }
+}
+
+// A shop autoloader does not know the module namespace: Thelia registers it at boot.
+if ($loader instanceof Composer\Autoload\ClassLoader) {
+    $loader->addPsr4('JsonLinesImporter\\', dirname(__DIR__).'/');
+    $loader->addPsr4('JsonLinesImporter\\Tests\\', __DIR__.'/');
+}
