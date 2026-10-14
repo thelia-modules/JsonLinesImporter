@@ -163,16 +163,6 @@ jobs:
           APP_ENV: test
         run: php bin/install --frontoffice_theme=flexy --backoffice_theme=default-twig --pdf_theme=default --email_theme=default --with-demo --skip-demo-images --with-admin --admin_login=thelia --admin_password=thelia --admin_first_name=thelia --admin_last_name=thelia --admin_email=thelia@example.com
 
-      - name: Activate the module
-        working-directory: ${{ env.SHOP_DIR }}
-        # The integration tests skip themselves when the module is not active: activating it
-        # here creates its tables in the test database.
-        env:
-          APP_ENV: test
-        run: |
-          php Thelia module:refresh
-          php Thelia module:activate JsonLinesImporter
-
       - name: Integration tests
         working-directory: ${{ env.SHOP_DIR }}
         # -d auto_prepend_file: see the unit step. Without it the kernel boots on a
