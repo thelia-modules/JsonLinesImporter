@@ -1,0 +1,63 @@
+.jli-dropzone {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+    background-color: var(--bs-body-bg);
+    cursor: pointer;
+    transition: border-color .15s ease-in-out, background-color .15s ease-in-out;
+}
+
+.jli-dropzone:hover,
+.jli-dropzone--over {
+    border-color: var(--bs-primary);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+.jli-dropzone--ready {
+    border-style: solid;
+    border-color: var(--bs-success);
+}
+
+.jli-stepper__link {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .375rem .75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-pill);
+    background-color: var(--bs-body-bg);
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+}
+
+.jli-stepper__number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background-color: var(--bs-secondary-bg);
+    font-weight: 600;
+    font-size: .875rem;
+}
+
+.jli-stepper__step--done .jli-stepper__link {
+    color: var(--bs-body-color);
+}
+
+.jli-stepper__step--done .jli-stepper__number {
+    background-color: var(--bs-success);
+    color: var(--bs-white);
+}
+
+.jli-stepper__step--current .jli-stepper__link {
+    border-color: var(--bs-primary);
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.jli-stepper__step--current .jli-stepper__number {
+    background-color: var(--bs-primary);
+    color: var(--bs-white);
+}
+

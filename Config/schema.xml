@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<database defaultIdMethod="native" name="TheliaMain"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="../../../../vendor/thelia/propel/resources/xsd/database.xsd">
+
+    <table name="jsonl_import" namespace="JsonLinesImporter\Model">
+        <column autoIncrement="true" name="id" primaryKey="true" required="true" type="INTEGER" />
+        <column name="original_name" required="true" size="255" type="VARCHAR" />
+        <column name="stored_name" required="true" size="255" type="VARCHAR" />
+        <column name="author" size="255" type="VARCHAR" />
+        <!-- see Enum\ImportStatus -->
+        <column name="status" required="true" size="20" type="VARCHAR" defaultValue="uploaded" />
+        <!-- JSON: selected keys, options, excluded lines (see Service\ImportParameters) -->
+        <column name="parameters" type="LONGVARCHAR" />
+        <column name="line_count" type="INTEGER" defaultValue="0" />
+        <column name="valid_count" type="INTEGER" defaultValue="0" />
+        <column name="invalid_count" type="INTEGER" defaultValue="0" />
+        <column name="created_count" type="INTEGER" defaultValue="0" />
+        <column name="updated_count" type="INTEGER" defaultValue="0" />
+        <column name="error_count" type="INTEGER" defaultValue="0" />
+        <column name="excluded_count" type="INTEGER" defaultValue="0" />
+        <!-- byte offset of the next line to analyse, then number of the last line imported -->
+        <column name="analysis_offset" type="INTEGER" defaultValue="0" />
+        <column name="cursor_line" type="INTEGER" defaultValue="0" />
+        <!-- see Enum\RunPhase -->
+        <column name="phase" size="20" type="VARCHAR" />
+        <column name="current_ref" size="255" type="VARCHAR" />
+        <column name="last_batch_at" type="TIMESTAMP" />
+        <behavior name="timestampable" />
+    </table>
+
+    <table name="jsonl_import_line" namespace="JsonLinesImporter\Model">
+        <column autoIncrement="true" name="id" primaryKey="true" required="true" type="INTEGER" />
+        <column name="import_id" required="true" type="INTEGER" />
+        <column name="line_number" required="true" type="INTEGER" />
+        <column name="ref" size="255" type="VARCHAR" />
+        <column name="valid" type="TINYINT" defaultValue="0" />
+        <column name="excluded" type="TINYINT" defaultValue="0" />
+        <!-- see Enum\LineAction -->
+        <column name="action" size="10" type="VARCHAR" />
+        <!-- see Enum\LineResult -->
+        <column name="result" required="true" size="10" type="VARCHAR" defaultValue="pending" />
+        <!-- the JSON object of the line, as read from the file -->
+        <column name="payload" type="CLOB" />
+        <!-- JSON lists of messages -->
+        <column name="errors" type="LONGVARCHAR" />
+        <column name="warnings" type="LONGVARCHAR" />
+        <foreign-key foreignTable="jsonl_import" name="fk_jsonl_import_line_import_id" onDelete="CASCADE" onUpdate="RESTRICT">
+            <reference foreign="id" local="import_id" />
+        </foreign-key>
+        <unique name="uk_jsonl_import_line_import_number">
+            <unique-column name="import_id" />
+            <unique-column name="line_number" />
+        </unique>
+        <index name="idx_jsonl_import_line_import_ref">
+            <index-column name="import_id" />
+            <index-column name="ref" />
+        </index>
+    </table>
+
+    <table name="jsonl_import_mapping" namespace="JsonLinesImporter\Model">
+        <column autoIncrement="true" name="id" primaryKey="true" required="true" type="INTEGER" />
+        <!-- see Enum\ReferentialType -->
+        <column name="type" required="true" size="20" type="VARCHAR" />
+        <!-- Thelia id of the feature or attribute a value belongs to, 0 otherwise -->
+        <column name="parent_id" required="true" type="INTEGER" defaultValue="0" />
+        <!-- lower case, trimmed -->
+        <column name="source_title" required="true" size="255" type="VARCHAR" />
+        <column name="target_id" type="INTEGER" />
+        <column name="ignored" type="TINYINT" defaultValue="0" />
+        <behavior name="timestampable" />
+        <unique name="uk_jsonl_import_mapping">
+            <unique-column name="type" />
+            <unique-column name="parent_id" />
+            <unique-column name="source_title" />
+        </unique>
+    </table>
+
+    <table name="jsonl_import_media" namespace="JsonLinesImporter\Model">
+        <column autoIncrement="true" name="id" primaryKey="true" required="true" type="INTEGER" />
+        <!-- see Enum\MediaType -->
+        <column name="media_type" required="true" size="20" type="VARCHAR" />
+        <!-- 0 for a library image, shared by the whole shop -->
+        <column name="product_id" required="true" type="INTEGER" defaultValue="0" />
+        <column name="object_id" required="true" type="INTEGER" />
+        <column name="source" required="true" type="LONGVARCHAR" />
+        <column name="source_hash" required="true" size="40" type="CHAR" />
+        <behavior name="timestampable" />
+        <unique name="uk_jsonl_import_media">
+            <unique-column name="media_type" />
+            <unique-column name="product_id" />
+            <unique-column name="source_hash" />
+        </unique>
+    </table>
+
+    <external-schema filename="local/config/schema.xml" referenceOnly="true" />
+</database>

@@ -1,0 +1,81 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'Data to import'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-data{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Data to import'|trans({}, d) } %}{% endembed %}
+
+        <p class="text-body-secondary">{{ 'Only the keys found in the valid lines are listed. An unticked key is left unchanged in the shop. The product title is always used to create a product; on an existing product it is only written when its box is ticked.'|trans({}, d) }}</p>
+
+        <form method="post" action="{{ path('admin_json_lines_importer_data_save', { importId: import.id }) }}" data-testid="jli-data-form">
+            <input type="hidden" name="_token" value="{{ assignToken() }}">
+
+            <div class="row g-3 mb-3">
+                {% for group, keys in groups %}
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100" data-controller="jli-check-all">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold">{{ group|trans({}, d) }}</span>
+                                <button type="button" class="btn btn-link btn-sm p-0" data-action="jli-check-all#toggle">{{ 'All / none'|trans({}, d) }}</button>
+                            </div>
+                            <div class="card-body">
+                                {% for key, info in keys %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="keys[]" value="{{ key }}" id="jli-key-{{ key }}"
+                                               data-jli-check-all-target="box" {{ info.checked ? 'checked' }}>
+                                        <label class="form-check-label" for="jli-key-{{ key }}">
+                                            <code>{{ key }}</code>
+                                            <span class="text-body-secondary small">({{ '%count% line(s)'|trans({ '%count%': info.count }, d) }})</span>
+                                            {% if key == 'title' %}<span class="badge text-bg-light border">{{ 'update only'|trans({}, d) }}</span>{% endif %}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            {% if locales is not empty %}
+                <div class="card mb-3">
+                    <div class="card-header fw-semibold">{{ 'Locales of the file'|trans({}, d) }}</div>
+                    <div class="card-body">
+                        {% for locale, info in locales %}
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" name="locales[]" value="{{ locale }}" id="jli-locale-{{ locale }}"
+                                       {{ info.checked ? 'checked' }} {{ info.known ? '' : 'disabled' }}>
+                                <label class="form-check-label" for="jli-locale-{{ locale }}">
+                                    {{ locale }} <span class="text-body-secondary small">({{ '%count% line(s)'|trans({ '%count%': info.count }, d) }})</span>
+                                    {% if not info.known %}<span class="badge text-bg-danger">{{ 'unknown to the shop'|trans({}, d) }}</span>
+                                    {% elseif not info.active %}<span class="badge text-bg-warning">{{ 'inactive'|trans({}, d) }}</span>{% endif %}
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">{{ 'Values for the products to create'|trans({}, d) }}</div>
+                <div class="card-body">
+                    <p class="small text-body-secondary mb-2">{{ '%count% line(s) will create a product.'|trans({ '%count%': creates }, d) }}</p>
+                    <label class="form-label" for="jli-fallback-category">{{ 'Default category of the products created without category'|trans({}, d) }}</label>
+                    <select class="form-select" id="jli-fallback-category" name="fallback_category_id" style="max-width: 32rem">
+                        <option value="">{{ 'None'|trans({}, d) }}</option>
+                        {% for id, title in categories %}
+                            <option value="{{ id }}" {{ parameters.fallbackCategoryId == id ? 'selected' }}>{{ title }} (#{{ id }})</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">{{ 'A product created without title takes its reference as title.'|trans({}, d) }}</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" data-testid="jli-next">
+                {{ 'Next: parameters'|trans({}, d) }} <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
+        </form>
+    </div>
+{% endblock %}

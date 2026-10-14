@@ -1,0 +1,79 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'Mapping'|trans({}, d) }} : {{ referential.label|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-mapping{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% include 'JsonLinesImporter/_stepper.html.twig' %}
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Mapping'|trans({}, d) ~ ' : ' ~ referential.label|trans({}, d) } %}{% endembed %}
+
+        {% include 'JsonLinesImporter/_parameters_nav.html.twig' with { current: referential.value } %}
+
+        <p class="text-body-secondary">
+            {{ 'Choose the element of the shop each title of the file stands for. The choices are memorized and proposed again at the next import.'|trans({}, d) }}
+            {% if not referential.canBeCreated %}{{ 'A tax rule can only be associated or ignored.'|trans({}, d) }}{% endif %}
+        </p>
+
+        <form method="post" action="{{ path('admin_json_lines_importer_mapping_save', { importId: import.id, type: referential.value }) }}" data-testid="jli-mapping-form">
+            <input type="hidden" name="_token" value="{{ assignToken() }}">
+
+            {% if referential.value == 'category' %}
+                <div class="mb-3" style="max-width: 32rem">
+                    <label class="form-label" for="jli-category-parent">{{ 'Parent of the categories to create'|trans({}, d) }}</label>
+                    <select class="form-select" id="jli-category-parent" name="category_parent_id">
+                        <option value="0">{{ 'Root'|trans({}, d) }}</option>
+                        {% for id, title in categories %}<option value="{{ id }}">{{ title }} (#{{ id }})</option>{% endfor %}
+                    </select>
+                </div>
+            {% endif %}
+
+            <div class="card mb-4">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" data-testid="jli-mapping-table">
+                        <thead>
+                        <tr>
+                            {% if referential.isValue %}<th scope="col">{{ 'Parent'|trans({}, d) }}</th>{% endif %}
+                            <th scope="col">{{ 'Title in the file'|trans({}, d) }}</th>
+                            <th scope="col" class="text-end">{{ 'Products'|trans({}, d) }}</th>
+                            <th scope="col">{{ 'Element of the shop'|trans({}, d) }}</th>
+                            <th scope="col">{{ 'Proposed from'|trans({}, d) }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for entry in entries %}
+                            <tr>
+                                {% if referential.isValue %}<td>{{ entry.parent_title }}</td>{% endif %}
+                                <td class="fw-semibold">{{ entry.title }}</td>
+                                <td class="text-end">{{ entry.count }}</td>
+                                <td style="min-width: 18rem">
+                                    <select class="form-select form-select-sm" name="choice[{{ entry.key }}]" aria-label="{{ entry.title }}">
+                                        <option value="ignore" {{ entry.choice == 'ignore' ? 'selected' }}>{{ 'Ignore'|trans({}, d) }}</option>
+                                        {% if referential.canBeCreated %}
+                                            <option value="create" {{ entry.choice == 'create' ? 'selected' }}>{{ 'Create "%title%" (hidden)'|trans({ '%title%': entry.title }, d) }}</option>
+                                        {% endif %}
+                                        <optgroup label="{{ 'Existing elements'|trans({}, d) }}">
+                                            {% for id, title in options[entry.parent_id] %}
+                                                <option value="{{ id }}" {{ entry.choice == id ~ '' ? 'selected' }}>{{ title }} (#{{ id }})</option>
+                                            {% endfor %}
+                                        </optgroup>
+                                    </select>
+                                </td>
+                                <td class="small text-body-secondary">
+                                    {% if entry.origin == 'memorized' %}{{ 'previous import'|trans({}, d) }}
+                                    {% elseif entry.origin == 'title' %}{{ 'same title'|trans({}, d) }}
+                                    {% else %}{{ 'no match'|trans({}, d) }}{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" data-testid="jli-next">
+                {{ 'Save and continue'|trans({}, d) }} <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
+        </form>
+    </div>
+{% endblock %}

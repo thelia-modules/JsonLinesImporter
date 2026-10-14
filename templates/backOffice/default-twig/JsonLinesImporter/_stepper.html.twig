@@ -1,0 +1,24 @@
+{# Steps of the wizard. `step` is the current one; the steps already reached link back. #}
+{% set reached = import.parametersArray.step|default(1) %}
+{% set editable = import.status == 'analysed' %}
+{% set steps = [
+    { number: 1, label: 'Upload'|trans({}, d), route: 'admin_json_lines_importer_analysis' },
+    { number: 2, label: 'Data to import'|trans({}, d), route: 'admin_json_lines_importer_data' },
+    { number: 3, label: 'Parameters'|trans({}, d), route: 'admin_json_lines_importer_options' },
+    { number: 4, label: 'Preview'|trans({}, d), route: 'admin_json_lines_importer_preview' },
+    { number: 5, label: 'Import'|trans({}, d), route: 'admin_json_lines_importer_run' },
+] %}
+<ol class="jli-stepper list-unstyled d-flex flex-wrap gap-2 mb-4" data-testid="jli-stepper">
+    {% for item in steps %}
+        {% set state = item.number == step ? 'current' : (item.number < step ? 'done' : 'todo') %}
+        <li class="jli-stepper__step jli-stepper__step--{{ state }}" {% if state == 'current' %}aria-current="step"{% endif %}>
+            {% if state != 'current' and item.number <= reached and (editable or item.number == 1 or item.number == 5) %}
+                <a href="{{ path(item.route, { importId: import.id }) }}" class="jli-stepper__link">
+                    <span class="jli-stepper__number">{{ item.number }}</span> {{ item.label }}
+                </a>
+            {% else %}
+                <span class="jli-stepper__link"><span class="jli-stepper__number">{{ item.number }}</span> {{ item.label }}</span>
+            {% endif %}
+        </li>
+    {% endfor %}
+</ol>

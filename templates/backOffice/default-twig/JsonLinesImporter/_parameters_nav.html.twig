@@ -1,0 +1,11 @@
+{# Pages of step 3: one per referential found in the selected data, then the other parameters. #}
+<ul class="nav nav-pills mb-3" data-testid="jli-parameters-nav">
+    {% for page in pages %}
+        <li class="nav-item">
+            <a class="nav-link {{ current == page.value ? 'active' }}" href="{{ path('admin_json_lines_importer_mapping', { importId: import.id, type: page.value }) }}">{{ page.label|trans({}, d) }}</a>
+        </li>
+    {% endfor %}
+    <li class="nav-item">
+        <a class="nav-link {{ current == 'options' ? 'active' }}" href="{{ path('admin_json_lines_importer_options', { importId: import.id }) }}">{{ 'Other parameters'|trans({}, d) }}</a>
+    </li>
+</ul>

@@ -1,0 +1,110 @@
+{% extends 'JsonLinesImporter/_layout.html.twig' %}
+
+{% block title %}{{ 'JSONL import'|trans({}, d) }}{% endblock %}
+{% block body_testid %}jli-list{% endblock %}
+
+{% block breadcrumb %}
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ path('admin.home') }}">{{ 'Home'|trans }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ 'JSONL import'|trans({}, d) }}</li>
+        </ol>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% embed '@BackOfficeDefaultTwig/_page_header.html.twig' with { title: 'Product import from a JSON Lines file'|trans({}, d) } %}{% endembed %}
+
+        {% if is_granted('UPDATE', { module: 'JsonLinesImporter' }) %}
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">{{ 'New import'|trans({}, d) }}</div>
+                <div class="card-body">
+                    <form method="post" action="{{ path('admin_json_lines_importer_upload') }}" enctype="multipart/form-data"
+                          data-controller="jli-dropzone" data-testid="jli-upload-form">
+                        <input type="hidden" name="_token" value="{{ assignToken() }}">
+                        <label class="jli-dropzone d-block text-center p-4 mb-3" data-jli-dropzone-target="zone" for="jli-file">
+                            <i class="bi bi-cloud-arrow-up fs-2 d-block mb-2" aria-hidden="true"></i>
+                            <span data-jli-dropzone-target="label">{{ 'Drop the .jsonl file here, or click to choose it'|trans({}, d) }}</span>
+                            <span class="d-block small text-body-secondary mt-1">{{ '%size% at most'|trans({ '%size%': max_size }, d) }}</span>
+                        </label>
+                        <input type="file" id="jli-file" name="file" accept=".jsonl" class="visually-hidden" required
+                               data-jli-dropzone-target="input" data-action="change->jli-dropzone#select">
+                        <div class="text-danger small mb-2 d-none" data-jli-dropzone-target="error">{{ 'Only .jsonl files are accepted.'|trans({}, d) }}</div>
+                        <button type="submit" class="btn btn-primary" data-jli-dropzone-target="submit" disabled>
+                            <i class="bi bi-upload" aria-hidden="true"></i> {{ 'Upload the JSONL file'|trans({}, d) }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if imports is empty %}
+            <div class="alert alert-info" data-testid="jli-imports-empty">{{ 'No import yet.'|trans({}, d) }}</div>
+        {% else %}
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" data-testid="jli-imports-table">
+                        <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">{{ 'Date'|trans({}, d) }}</th>
+                            <th scope="col">{{ 'File'|trans({}, d) }}</th>
+                            <th scope="col">{{ 'Author'|trans({}, d) }}</th>
+                            <th scope="col">{{ 'State'|trans({}, d) }}</th>
+                            <th scope="col" class="text-end">{{ 'Lines'|trans({}, d) }}</th>
+                            <th scope="col" class="text-end">{{ 'Created'|trans({}, d) }}</th>
+                            <th scope="col" class="text-end">{{ 'Updated'|trans({}, d) }}</th>
+                            <th scope="col" class="text-end">{{ 'Errors'|trans({}, d) }}</th>
+                            <th scope="col" class="text-end"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for import in imports %}
+                            {% set status = import.status %}
+                            <tr data-row-id="{{ import.id }}">
+                                <td>{{ import.id }}</td>
+                                <td class="text-nowrap">{{ import.createdAt ? import.createdAt|date('Y-m-d H:i') : '' }}</td>
+                                <td>{{ import.originalName }}</td>
+                                <td>{{ import.author }}</td>
+                                <td>
+                                    {% if status == 'done' %}
+                                        <span class="badge text-bg-success">{{ 'Done'|trans({}, d) }}</span>
+                                    {% elseif status == 'running' %}
+                                        <span class="badge text-bg-primary">{{ 'Running'|trans({}, d) }}</span>
+                                    {% elseif status == 'paused' %}
+                                        <span class="badge text-bg-warning">{{ 'Paused'|trans({}, d) }}</span>
+                                    {% elseif status == 'analysing' %}
+                                        <span class="badge text-bg-secondary">{{ 'Analysis'|trans({}, d) }}</span>
+                                    {% else %}
+                                        <span class="badge text-bg-info">{{ 'Step %step%'|trans({ '%step%': import.parametersArray.step|default(1) }, d) }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ import.lineCount }}</td>
+                                <td class="text-end">{{ import.createdCount }}</td>
+                                <td class="text-end">{{ import.updatedCount }}</td>
+                                <td class="text-end">{{ import.errorCount }}</td>
+                                <td class="text-end text-nowrap">
+                                    {% set action_label = status == 'done' ? 'Report'|trans({}, d) : 'Resume'|trans({}, d) %}
+                                    <a href="{{ path('admin_json_lines_importer_resume', { importId: import.id }) }}" class="btn btn-sm btn-outline-primary" title="{{ action_label }}" aria-label="{{ action_label }}">
+                                        <i class="bi {{ status == 'done' ? 'bi-file-text' : 'bi-play-fill' }}" aria-hidden="true"></i>
+                                    </a>
+                                    {% if is_granted('UPDATE', { module: 'JsonLinesImporter' }) %}
+                                        <form method="post" action="{{ path('admin_json_lines_importer_delete', { importId: import.id }) }}" class="d-inline"
+                                              onsubmit="return confirm('{{ 'Delete this import and its file? The products already imported are not touched.'|trans({}, d)|e('js') }}')">
+                                            <input type="hidden" name="_token" value="{{ assignToken() }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ 'Delete'|trans({}, d) }}" aria-label="{{ 'Delete'|trans({}, d) }}">
+                                                <i class="bi bi-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

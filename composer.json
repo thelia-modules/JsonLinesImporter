@@ -1,16 +1,48 @@
 {
   "name": "thelia/json-lines-importer-module",
-  "description": "JsonLinesImporter module for Thelia — Import products from JSONL file.",
+  "description": "JsonLinesImporter module for Thelia 3: import products from a JSON Lines file through a back-office wizard.",
   "license": "GPL-3.0-or-later",
   "type": "thelia-module",
+  "authors": [
+    {
+      "name": "Samuel Diakité, OpenStudio",
+      "email": "sdiakite@openstudio.fr",
+      "role": "Developer"
+    }
+  ],
   "require": {
-    "thelia/installer": "~1.1"
+    "php": ">=8.3",
+    "thelia/installer": "~1.1",
+    "opis/json-schema": "^2.6",
+    "symfony/http-client": "^7.0",
+    "symfony/html-sanitizer": "^7.4",
+    "symfony/http-foundation": "^7.0",
+    "symfony/lock": "^7.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
+  },
+  "suggest": {
+    "thelia/thelia-library-module": "Copy of the images of the HTML fields into the media library"
+  },
+  "autoload": {
+    "psr-4": {
+      "JsonLinesImporter\\": ""
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "JsonLinesImporter\\Tests\\": "tests/"
+    }
   },
   "extra": {
     "installer-name": "JsonLinesImporter"
   },
   "config": {
     "allow-plugins": {
+      "composer/installers": false,
+      "symfony/flex": false,
+      "symfony/runtime": false,
       "thelia/installer": true
     }
   }

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="http://thelia.net/schema/dic/module"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://thelia.net/schema/dic/module http://thelia.net/schema/dic/module/module-2_2.xsd">
+    <fullnamespace>JsonLinesImporter\JsonLinesImporter</fullnamespace>
+    <descriptive locale="en_US">
+        <title>JSON Lines importer</title>
+        <description>Import products from a JSON Lines file (one product per line) through a five-step back-office wizard: upload, data selection, mapping, preview, execution.</description>
+    </descriptive>
+    <descriptive locale="fr_FR">
+        <title>Import JSON Lines</title>
+        <description>Importe des produits depuis un fichier JSON Lines (un produit par ligne) au moyen d'un tunnel en cinq étapes dans le back-office : téléversement, choix des données, correspondances, prévisualisation, exécution.</description>
+    </descriptive>
+    <languages>
+        <language>en_US</language>
+        <language>fr_FR</language>
+    </languages>
+    <version>1.0.0</version>
+    <authors>
+        <author>
+            <name>Samuel Diakité</name>
+            <company>OpenStudio</company>
+            <email>sdiakite@openstudio.fr</email>
+        </author>
+    </authors>
+    <type>classic</type>
+    <thelia>3.2.0</thelia>
+    <stability>beta</stability>
+</module>
