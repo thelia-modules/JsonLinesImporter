@@ -85,6 +85,8 @@
         <column name="object_id" required="true" type="INTEGER" />
         <column name="source" required="true" type="LONGVARCHAR" />
         <column name="source_hash" required="true" size="40" type="CHAR" />
+        <!-- file the source gave: an image stores one per language (product_image_i18n.file) -->
+        <column name="file" size="255" type="VARCHAR" />
         <behavior name="timestampable" />
         <unique name="uk_jsonl_import_media">
             <unique-column name="media_type" />
