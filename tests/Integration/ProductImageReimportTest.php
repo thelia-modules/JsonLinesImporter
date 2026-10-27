@@ -145,7 +145,9 @@ final class ProductImageReimportTest extends IntegrationTestCase
         }
 
         foreach (ProductImageQuery::create()->filterByProductId($product->getId())->find() as $image) {
-            @unlink($image->getUploadDir().'/'.$image->getFile());
+            foreach ($image->getStoredFiles() as $file) {
+                @unlink($image->getUploadDir().'/'.$file);
+            }
         }
 
         JsonlImportMediaQuery::create()->filterByProductId($product->getId())->delete();

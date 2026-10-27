@@ -4,6 +4,18 @@ All notable changes to this module are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] 2026-10-27
+
+Requires Thelia 3.3.
+
+### Added
+- File of an image by language: `images[].i18n.<locale>.source` gives the file of one language and wins over `images[].source`, which gives the file of every active language of the shop. An image may carry its sources in its `i18n` blocks only.
+- `jsonl_import_media.file` remembers the file each source gave, filled for the media already imported by the update.
+
+### Changed
+- Line schema `Config/schema/product-import-1.1.json` (`$id` `urn:thelia:json-lines-importer:product-import:1.1`): `images[].source` is no longer required when an `i18n` block carries one, `documents[].i18n` accepts no `source`. Lines valid against 1.0 stay valid.
+- A product image that leaves the file takes the files of all its languages with it.
+
 ## [1.0.0] 2026-10-13
 
 First public version. Requires Thelia 3.2 and PHP 8.3.
@@ -22,4 +34,5 @@ First public version. Requires Thelia 3.2 and PHP 8.3.
 - Analysis and import run in resumable HTTP batches, one import at a time.
 - Console command `jsonlinesimporter:import` replaying an import with the parameters exported by the wizard, with a `--dry-run` option.
 
+[1.1.0]: https://github.com/thelia-modules/JsonLinesImporter/releases/tag/1.1.0
 [1.0.0]: https://github.com/thelia-modules/JsonLinesImporter/releases/tag/1.0.0

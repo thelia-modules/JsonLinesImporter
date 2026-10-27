@@ -2,11 +2,11 @@
 
 Product import for Thelia 3 from a JSON Lines file (`.jsonl`, one product per line), through a five-step back-office wizard: upload and analysis, data selection, parameters (mappings and options), preview, execution. A console command replays an import with the parameters the wizard exports.
 
-Each line is a product object validated against the JSON Schema `Config/schema/product-import-1.0.json` (draft 2020-12, `$id` `urn:thelia:json-lines-importer:product-import:1.0`): product and translations, sale elements and variants, prices by currency, tax rule, categories, brand, features, images, documents, videos, accessories, and the old address of the product page.
+Each line is a product object validated against the JSON Schema `Config/schema/product-import-1.1.json` (draft 2020-12, `$id` `urn:thelia:json-lines-importer:product-import:1.1`): product and translations, sale elements and variants, prices by currency, tax rule, categories, brand, features, images, documents, videos, accessories, and the old address of the product page.
 
 ## Compatibility
 
-- Thelia 3.2 or later (typed product relations, product videos), default-twig back-office
+- Thelia 3.3 or later (typed product relations, product videos, file of an image by language), default-twig back-office
 - PHP 8.3+
 - `opis/json-schema` ^2.6, `symfony/html-sanitizer` ^7.4
 - Optional: TheliaLibrary (images of the HTML fields copied to the media library)
@@ -35,6 +35,7 @@ The activation creates four tables: `jsonl_import`, `jsonl_import_line`, `jsonl_
 - A sale field (`ean_code`, `quantity`, `weight`, `newness`, `promo`, `price`, `promo_price`, `prices`) has one box at step 2, listed as soon as the root or a variant carries it. Unticked, it is left unchanged on the product and on every variant.
 - Variants are matched by their `ref`: a matched sale element keeps its id, a sale element missing from the file is hidden, never deleted.
 - Images and documents are matched by their source, remembered by the module: a known source is not downloaded again, and only the files the module imported are removed when they leave the file.
+- The file of an image is translated. `images[].source` is the file of every active language of the shop, whatever the languages selected at step 2; `images[].i18n.<locale>.source` is the file of this language only and wins over the root one, following the language selection like the other contents of an `i18n` block. An image needs one of them, or both. The root source identifies the image from one import to the next, else the first source of its `i18n` blocks: changing it replaces the image. A language left without a source loses the file the module gave it, and the shop shows the file of the default language there. The file of a document is not translated: its `i18n` blocks carry no `source`.
 - Media files are downloaded from public addresses only (private, loopback and link-local addresses are refused, redirections included), read from the server only inside the directory declared at step 3, itself a directory of `local/import/` given relative to it (an absolute path is accepted only inside it, symbolic links resolved), and stored with the extension of their detected type (JPEG, PNG, GIF, WebP, PDF, MP4, WebM, Ogg), never the one of their source name. An image or a document weighs 20 MB at most and is fetched in 60 seconds at most; a video file 200 MB and 10 minutes.
 - Videos become the product videos of the core (`product_video`), shown in the product gallery after the images. A source is a YouTube, Vimeo or Dailymotion address (the platforms the shop enables, configuration variable `video_providers`), or a video file: a public address whose path ends with `.mp4`, `.m4v`, `.webm`, `.ogv` or `.ogg`, or a path in the directory of the videos declared at step 3. A file is kept only if its detected type is accepted by the shop (`video_upload_allowed_mime_types`, MP4, WebM and Ogg by default). Any other address is reported and ignored.
 - A platform video is matched by its platform and identifier (`youtu.be/x` and `watch?v=x` are the same video), a file by its source. As for images, a known video is not fetched again, a video the module imported is removed when it leaves the file (its hosted file and the link that publishes it included), and a video added by hand is never touched. A list whose videos are all invalid leaves the current videos in place.
@@ -69,6 +70,7 @@ The parameters file is the one exported at step 3 ("Export the parameters"): sel
 - The `accessory` table holds every relation between products (accessory, cross-selling, up-selling, types declared by the merchant) under a required `type_id`: the module writes and replaces the links of the `accessory` type only.
 - `product_price.from_default_currency` defaults to 1: an explicit price writes it to 0.
 - The media library finds the file of an image in the session or default locale only: library images are created in the default locale.
+- Since Thelia 3.3 the file of a product image lives on its translations (`product_image_i18n.file`), the one of a document still on its row: an image is created without a file, then each language gets its own, a file shared by several languages being stored once. The module remembers the file each source gave (`jsonl_import_media.file`).
 
 ## Assets
 

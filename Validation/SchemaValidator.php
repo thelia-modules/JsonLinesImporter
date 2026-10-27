@@ -12,7 +12,7 @@ use Opis\JsonSchema\Validator;
  */
 final class SchemaValidator
 {
-    public const SCHEMA_ID = 'urn:thelia:json-lines-importer:product-import:1.0';
+    public const SCHEMA_ID = 'urn:thelia:json-lines-importer:product-import:1.1';
 
     private const MAX_ERRORS = 20;
 
@@ -22,7 +22,7 @@ final class SchemaValidator
 
     public function __construct(?string $schemaPath = null)
     {
-        $this->schemaPath = $schemaPath ?? \dirname(__DIR__).'/Config/schema/product-import-1.0.json';
+        $this->schemaPath = $schemaPath ?? \dirname(__DIR__).'/Config/schema/product-import-1.1.json';
     }
 
     /**

@@ -82,8 +82,8 @@ final readonly class ProductLineFactory
                 ),
                 array_values($nodes),
             )),
-            images: Field::from($keep('images'), 'images', static fn (array $nodes): array => self::mediaLines($nodes, $defaultLocale, $locales)),
-            documents: Field::from($keep('documents'), 'documents', static fn (array $nodes): array => self::mediaLines($nodes, $defaultLocale, $locales)),
+            images: Field::from($keep('images'), 'images', static fn (array $nodes): array => self::mediaLines($nodes, $defaultLocale, $locales, true)),
+            documents: Field::from($keep('documents'), 'documents', static fn (array $nodes): array => self::mediaLines($nodes, $defaultLocale, $locales, false)),
             videos: Field::from($keep('videos'), 'videos', static fn (array $nodes): array => array_map(
                 static fn (array $node): VideoLine => new VideoLine(
                     (string) $node['source'],
@@ -105,21 +105,44 @@ final readonly class ProductLineFactory
 
     /**
      * @param list<string>|null $locales
+     * @param bool              $localized whether the file is translated (images): an i18n block may carry a source
      *
      * @return list<MediaLine>
      */
-    private static function mediaLines(array $nodes, string $defaultLocale, ?array $locales): array
+    private static function mediaLines(array $nodes, string $defaultLocale, ?array $locales, bool $localized): array
     {
         return array_map(
-            static fn (array $node): MediaLine => new MediaLine(
-                isset($node['_key']) ? (string) $node['_key'] : null,
-                (string) $node['source'],
-                Field::from($node, 'visible', static fn (mixed $value): bool => (bool) $value),
-                isset($node['position']) ? (int) $node['position'] : null,
-                I18nBag::fromNode($node, MediaLine::TEXT_FIELDS, $defaultLocale, $locales),
-            ),
+            static function (array $node) use ($defaultLocale, $locales, $localized): MediaLine {
+                $source = isset($node['source']) ? (string) $node['source'] : null;
+                $localeSources = $localized ? self::localeSources($node) : [];
+
+                return new MediaLine(
+                    isset($node['_key']) ? (string) $node['_key'] : null,
+                    $source,
+                    Field::from($node, 'visible', static fn (mixed $value): bool => (bool) $value),
+                    isset($node['position']) ? (int) $node['position'] : null,
+                    I18nBag::fromNode($node, MediaLine::TEXT_FIELDS, $defaultLocale, $locales),
+                    null === $locales ? $localeSources : array_intersect_key($localeSources, array_flip($locales)),
+                    // Read before the locale selection: unticking a locale does not change which image it is.
+                    $source ?? (string) reset($localeSources),
+                );
+            },
             array_values($nodes),
         );
+    }
+
+    /** @return array<string, string> locale => source, in file order */
+    private static function localeSources(array $node): array
+    {
+        $sources = [];
+
+        foreach (\is_array($node['i18n'] ?? null) ? $node['i18n'] : [] as $locale => $block) {
+            if (\is_array($block) && isset($block['source'])) {
+                $sources[(string) $locale] = (string) $block['source'];
+            }
+        }
+
+        return $sources;
     }
 
     /**

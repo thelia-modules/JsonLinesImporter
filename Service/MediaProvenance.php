@@ -43,13 +43,20 @@ final readonly class MediaProvenance
             ->getData();
     }
 
-    public function record(MediaType $type, int $productId, string $source, int $objectId): void
+    /**
+     * @param string|null $file the file the source gave, kept as is when null
+     */
+    public function record(MediaType $type, int $productId, string $source, int $objectId, ?string $file = null): void
     {
         $media = $this->find($type, $productId, $source) ?? (new JsonlImportMedia())
             ->setMediaType($type->value)
             ->setProductId($productId)
             ->setSource(self::normalize($source))
             ->setSourceHash(self::hash($source));
+
+        if (null !== $file) {
+            $media->setFile($file);
+        }
 
         $media->setObjectId($objectId)->save();
     }
