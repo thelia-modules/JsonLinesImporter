@@ -15,6 +15,7 @@ Requires Thelia 3.3.
 ### Changed
 - Line schema `Config/schema/product-import-1.1.json` (`$id` `urn:thelia:json-lines-importer:product-import:1.1`): `images[].source` is no longer required when an `i18n` block carries one, `documents[].i18n` accepts no `source`. Lines valid against 1.0 stay valid.
 - A product image that leaves the file takes the files of all its languages with it.
+- A file added by hand for a language is kept on replay: only an empty language or one holding a file the module imported gets the file of its source.
 
 ## [1.0.0] 2026-10-13
 

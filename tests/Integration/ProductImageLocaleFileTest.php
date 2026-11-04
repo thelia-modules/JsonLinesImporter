@@ -148,6 +148,33 @@ final class ProductImageLocaleFileTest extends IntegrationTestCase
     }
 
     #[Test]
+    public function aFileAddedByHandForALanguageSurvivesAReplay(): void
+    {
+        $line = [['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'bravo.png']]]];
+        $this->write($line);
+        $before = $this->filesByLocale();
+
+        $manualFile = 'manual-'.$this->image()->getId().'.png';
+        $this->replaceFileByHand($this->otherLocale, $manualFile);
+
+        $this->write($line);
+        $after = $this->filesByLocale();
+
+        self::assertSame($manualFile, $after[$this->otherLocale]);
+        self::assertFileExists($this->uploadDir().'/'.$manualFile);
+        self::assertSame(array_diff_key($before, [$this->otherLocale => true]), array_diff_key($after, [$this->otherLocale => true]));
+
+        // A new source for that language is not stored either: no language would hold its file.
+        $onDisk = $this->storedFilesOnDisk();
+        $this->write([['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'charlie.png']]]]);
+
+        self::assertSame($manualFile, $this->filesByLocale()[$this->otherLocale]);
+        self::assertFileExists($this->uploadDir().'/'.$manualFile);
+        self::assertSame($onDisk, $this->storedFilesOnDisk());
+        self::assertSame([], glob($this->uploadDir().'/charlie-'.$this->image()->getId().'*'));
+    }
+
+    #[Test]
     public function aLanguageWhoseSourceLeavesTheLineTakesTheRootFileBack(): void
     {
         $this->write([['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'bravo.png']]]]);
@@ -216,6 +243,19 @@ final class ProductImageLocaleFileTest extends IntegrationTestCase
         $report = new LineReport();
         $container->get(ProductWriter::class)->write($line, $parameters, $report);
         self::assertSame([], $report->warnings());
+    }
+
+    /** What the back office does when an admin uploads another file for one language. */
+    private function replaceFileByHand(string $locale, string $file): void
+    {
+        $image = $this->image();
+        $replaced = (string) $image->setLocale($locale)->getOwnFile();
+        copy($this->directory.'/delta.png', $image->getUploadDir().'/'.$file);
+        $image->setFile($file)->save();
+
+        if (!\in_array($replaced, $image->getStoredFiles(), true)) {
+            unlink($image->getUploadDir().'/'.$replaced);
+        }
     }
 
     /** @return array<string, ?string> locale => own file of the only image of the product */

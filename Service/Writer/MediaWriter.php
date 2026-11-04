@@ -239,9 +239,9 @@ final readonly class MediaWriter
 
     /**
      * Gives each language of the image the file of its source, a source shared by several languages
-     * being stored once. A language of the selection whose imported file no longer has a source is
-     * emptied: the core shows the file of the default language there. A file no language stores any
-     * more is removed once the line is committed.
+     * being stored once. A language holding a file added by hand keeps it. A language of the selection
+     * whose imported file no longer has a source is emptied: the core shows the file of the default
+     * language there. A file no language stores any more is removed once the line is committed.
      *
      * @param array<string, FetchedFile> $fetched
      */
@@ -261,12 +261,21 @@ final readonly class MediaWriter
             }
         }
 
+        $importedFiles = array_filter(array_map(static fn ($record): ?string => $record->getFile(), $records));
+
         /** @var array<string, string> $fileOfSource source hash => file name */
         $fileOfSource = [];
         $wanted = $media->filesByLocale($this->shopContext->activeLocales());
 
         foreach ($wanted as $locale => $source) {
             $hash = MediaProvenance::hash($source);
+            $image->setLocale($locale);
+            $ownFile = $image->getOwnFile();
+
+            // A file added by hand for this language is kept: checked before placing, so that no file is stored for nothing.
+            if (null !== $ownFile && '' !== $ownFile && !\in_array($ownFile, $importedFiles, true)) {
+                continue;
+            }
 
             if (!isset($fileOfSource[$hash])) {
                 $known = isset($records[$hash]) ? $records[$hash]->getFile() : null;
@@ -286,12 +295,10 @@ final readonly class MediaWriter
 
             $image->setLocale($locale);
 
-            if ($image->getOwnFile() !== $fileOfSource[$hash]) {
+            if ($ownFile !== $fileOfSource[$hash]) {
                 $image->setFile($fileOfSource[$hash]);
             }
         }
-
-        $importedFiles = array_filter(array_map(static fn ($record): ?string => $record->getFile(), $records));
 
         foreach (ProductImageI18nQuery::create()->filterById($imageId)->find() as $translation) {
             $locale = (string) $translation->getLocale();
