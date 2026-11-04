@@ -260,6 +260,11 @@ final readonly class MediaWriter
         $wanted = $media->filesByLocale($this->shopContext->activeLocales());
 
         foreach ($wanted as $locale => $source) {
+            // A language out of the selection is left as it is, like the other fields of an i18n block.
+            if (!$parameters->isLocaleSelected($locale)) {
+                continue;
+            }
+
             $hash = MediaProvenance::hash($source);
             $image->setLocale($locale);
             $ownFile = $image->getOwnFile();

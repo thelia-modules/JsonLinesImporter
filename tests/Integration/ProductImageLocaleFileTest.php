@@ -231,6 +231,31 @@ final class ProductImageLocaleFileTest extends IntegrationTestCase
     }
 
     #[Test]
+    public function aLanguageOutsideTheSelectionKeepsItsFileAndItsProvenance(): void
+    {
+        $defaultLocale = Lang::getDefaultLanguage()->getLocale();
+
+        $this->write([['source' => 'alpha.png', 'i18n' => [$defaultLocale => ['source' => 'charlie.png'], $this->otherLocale => ['source' => 'bravo.png']]]]);
+        $before = $this->filesByLocale();
+        $recordedBefore = $this->recordedFiles();
+
+        // Replayed with the default language only: the root source must not reach the other one.
+        $this->write(
+            [['source' => 'alpha.png', 'i18n' => [$defaultLocale => ['source' => 'delta.png'], $this->otherLocale => ['source' => 'bravo.png']]]],
+            [$defaultLocale],
+        );
+        $after = $this->filesByLocale();
+
+        self::assertSame($before[$this->otherLocale], $after[$this->otherLocale], 'the language out of the selection keeps its file');
+        self::assertStringStartsWith('bravo-', $after[$this->otherLocale]);
+        self::assertFileExists($this->uploadDir().'/'.$before[$this->otherLocale], 'its file is still on disk');
+        self::assertContains($before[$this->otherLocale], $this->recordedFiles(), 'its provenance is kept');
+        self::assertStringStartsWith('delta-', $after[$defaultLocale], 'the selected language is updated');
+        self::assertFileDoesNotExist($this->uploadDir().'/'.$before[$defaultLocale]);
+        self::assertCount(\count($recordedBefore), $this->recordedFiles());
+    }
+
+    #[Test]
     public function anImageLeavingTheLineTakesEveryFileOfItsLanguages(): void
     {
         $this->write([['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'bravo.png']]]]);
@@ -245,11 +270,14 @@ final class ProductImageLocaleFileTest extends IntegrationTestCase
         self::assertCount(1, $this->storedFilesOnDisk());
     }
 
-    /** @param list<array<string, mixed>> $images */
-    private function write(array $images): void
+    /**
+     * @param list<array<string, mixed>> $images
+     * @param list<string>|null          $selectedLocales
+     */
+    private function write(array $images, ?array $selectedLocales = null): void
     {
         $container = static::getContainer();
-        $parameters = new ImportParameters(fallbackCategoryId: $this->categoryId, imagesDirectory: $this->directoryName);
+        $parameters = new ImportParameters(fallbackCategoryId: $this->categoryId, selectedLocales: $selectedLocales, imagesDirectory: $this->directoryName);
         $line = $container->get(ProductLineFactory::class)->create(
             ['ref' => self::REF, 'title' => 'Image locale file', 'price' => 10, 'images' => $images],
             Lang::getDefaultLanguage()->getLocale(),
@@ -292,6 +320,18 @@ final class ProductImageLocaleFileTest extends IntegrationTestCase
         uksort($files, static fn (string $left, string $right): int => ($rank[$left] ?? \PHP_INT_MAX) <=> ($rank[$right] ?? \PHP_INT_MAX));
 
         return $files;
+    }
+
+    /** @return list<string> files recorded in the provenance of the product images */
+    private function recordedFiles(): array
+    {
+        $files = array_map(
+            static fn ($record): string => (string) $record->getFile(),
+            iterator_to_array(JsonlImportMediaQuery::create()->filterByProductId($this->productId())->find()),
+        );
+        sort($files);
+
+        return array_values(array_filter($files, static fn (string $file): bool => '' !== $file));
     }
 
     /** @return list<string> files of the images of the product present in the upload directory */
