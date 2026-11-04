@@ -12,6 +12,7 @@ use JsonLinesImporter\Dto\ProductLine;
 use JsonLinesImporter\Enum\MediaKind;
 use JsonLinesImporter\Enum\MediaType;
 use JsonLinesImporter\Exception\ImportException;
+use JsonLinesImporter\Model\JsonlImportMedia;
 use JsonLinesImporter\Service\LineReport;
 use JsonLinesImporter\Service\MediaFetcher;
 use JsonLinesImporter\Service\MediaProvenance;
@@ -59,7 +60,7 @@ final readonly class MediaWriter
             /** @var MediaLine $media */
             foreach ($field->value as $media) {
                 $object = null === $productId ? null : $this->existingObject($type, $productId, $media->identity);
-                $sources = $this->sourcesOf($type, $media);
+                $sources = $this->sourcesOf($type, $media, $object instanceof ProductImage ? $this->localesWithFileAddedByHand($object) : []);
 
                 if (null === $object && [] === $sources) {
                     $report->warn(\sprintf('Media ignored: %s has no file in the selected languages', $media->identity));
@@ -251,17 +252,8 @@ final readonly class MediaWriter
         $productId = (int) $image->getProductId();
         $imageId = (int) $image->getId();
         $before = $image->getStoredFiles();
-
-        /** @var array<string, \JsonLinesImporter\Model\JsonlImportMedia> $records source hash => provenance of this image */
-        $records = [];
-
-        foreach ($this->provenance->findAll($type, $productId) as $record) {
-            if ((int) $record->getObjectId() === $imageId) {
-                $records[$record->getSourceHash()] = $record;
-            }
-        }
-
-        $importedFiles = array_filter(array_map(static fn ($record): ?string => $record->getFile(), $records));
+        $records = $this->recordsOf($image);
+        $importedFiles = self::importedFiles($records);
 
         /** @var array<string, string> $fileOfSource source hash => file name */
         $fileOfSource = [];
@@ -272,8 +264,8 @@ final readonly class MediaWriter
             $image->setLocale($locale);
             $ownFile = $image->getOwnFile();
 
-            // A file added by hand for this language is kept: checked before placing, so that no file is stored for nothing.
-            if (null !== $ownFile && '' !== $ownFile && !\in_array($ownFile, $importedFiles, true)) {
+            // Checked before placing, so that no file is stored for nothing (prepare() does not fetch it either).
+            if (self::isAddedByHand($ownFile, $importedFiles)) {
                 continue;
             }
 
@@ -376,15 +368,67 @@ final readonly class MediaWriter
     /**
      * The sources whose file the line asks for: the file of every language of an image, the one of a document.
      *
+     * @param array<string, true> $skippedLocales languages of an image whose file is not replaced
+     *
      * @return list<string>
      */
-    private function sourcesOf(MediaType $type, MediaLine $media): array
+    private function sourcesOf(MediaType $type, MediaLine $media, array $skippedLocales = []): array
     {
         if (MediaType::PRODUCT_IMAGE !== $type) {
             return [(string) $media->source];
         }
 
-        return array_values(array_unique($media->filesByLocale($this->shopContext->activeLocales())));
+        return array_values(array_unique(array_diff_key($media->filesByLocale($this->shopContext->activeLocales()), $skippedLocales)));
+    }
+
+    /**
+     * The languages of an image holding a file added by hand, which the import never replaces. Read from
+     * the translations, without changing the language of the model.
+     *
+     * @return array<string, true>
+     */
+    private function localesWithFileAddedByHand(ProductImage $image): array
+    {
+        $importedFiles = self::importedFiles($this->recordsOf($image));
+        $locales = [];
+
+        foreach (ProductImageI18nQuery::create()->filterById($image->getId())->find() as $translation) {
+            if (self::isAddedByHand($translation->getFile(), $importedFiles)) {
+                $locales[(string) $translation->getLocale()] = true;
+            }
+        }
+
+        return $locales;
+    }
+
+    /** @return array<string, JsonlImportMedia> source hash => provenance of the image */
+    private function recordsOf(ProductImage $image): array
+    {
+        $records = [];
+
+        foreach ($this->provenance->findAll(MediaType::PRODUCT_IMAGE, (int) $image->getProductId()) as $record) {
+            if ((int) $record->getObjectId() === (int) $image->getId()) {
+                $records[$record->getSourceHash()] = $record;
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, JsonlImportMedia> $records
+     *
+     * @return array<string, string> the files the module imported for the image
+     */
+    private static function importedFiles(array $records): array
+    {
+        return array_filter(array_map(static fn (JsonlImportMedia $record): ?string => $record->getFile(), $records));
+    }
+
+    /** @param array<string, string> $importedFiles */
+    private static function isAddedByHand(?string $file, array $importedFiles): bool
+    {
+        return null !== $file && '' !== $file && !\in_array($file, $importedFiles, true);
     }
 
     /**

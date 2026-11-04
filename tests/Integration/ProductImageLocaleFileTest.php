@@ -175,6 +175,22 @@ final class ProductImageLocaleFileTest extends IntegrationTestCase
     }
 
     #[Test]
+    public function aSourceWantedOnlyByALanguageWithAFileAddedByHandIsNotFetched(): void
+    {
+        $line = [['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'bravo.png']]]];
+        $this->write($line);
+        $this->replaceFileByHand($this->otherLocale, 'manual-'.$this->image()->getId().'.png');
+        $this->write($line);
+
+        // A source fetched would be reported missing by write().
+        unlink($this->directory.'/bravo.png');
+        $this->write($line);
+        $this->write([['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'missing.png']]]]);
+
+        self::assertSame('manual-'.$this->image()->getId().'.png', $this->filesByLocale()[$this->otherLocale]);
+    }
+
+    #[Test]
     public function aLanguageWhoseSourceLeavesTheLineTakesTheRootFileBack(): void
     {
         $this->write([['source' => 'alpha.png', 'i18n' => [$this->otherLocale => ['source' => 'bravo.png']]]]);
