@@ -84,6 +84,63 @@ final class ProductLineFactoryTest extends TestCase
     }
 
     #[Test]
+    public function theSourceOfALanguageWinsOverTheRootOneForThisLanguage(): void
+    {
+        $line = (new ProductLineFactory())->create([
+            'ref' => 'A',
+            'images' => [['source' => 'front.jpg', 'i18n' => ['fr_FR' => ['source' => 'face.jpg', 'title' => 'Face']]]],
+        ], 'fr_FR', new ImportParameters());
+
+        $image = $line->images->value[0];
+
+        self::assertSame('front.jpg', $image->identity);
+        self::assertSame(['fr_FR' => 'face.jpg'], $image->localeSources);
+        self::assertSame(['fr_FR' => 'face.jpg', 'en_US' => 'front.jpg', 'de_DE' => 'front.jpg'], $image->filesByLocale(['fr_FR', 'en_US', 'de_DE']));
+        self::assertFalse($image->i18n->hasField('source'), 'a source is not a text: the HTML sanitizer never sees it');
+    }
+
+    #[Test]
+    public function anImageWithoutRootSourceIsIdentifiedByItsFirstLanguageSource(): void
+    {
+        $line = (new ProductLineFactory())->create([
+            'ref' => 'A',
+            'images' => [['i18n' => ['en_US' => ['source' => 'diagram.jpg'], 'fr_FR' => ['source' => 'schema.jpg']]]],
+        ], 'fr_FR', new ImportParameters(selectedLocales: ['fr_FR']));
+
+        $image = $line->images->value[0];
+
+        self::assertNull($image->source);
+        self::assertSame('diagram.jpg', $image->identity, 'read before the locale selection');
+        self::assertSame(['fr_FR' => 'schema.jpg'], $image->localeSources);
+        self::assertSame(['fr_FR' => 'schema.jpg'], $image->filesByLocale(['fr_FR', 'en_US']));
+    }
+
+    #[Test]
+    public function theRootSourceOfAnImageGoesToEveryActiveLanguageEvenAnUntickedOne(): void
+    {
+        $line = (new ProductLineFactory())->create([
+            'ref' => 'A',
+            'images' => [['source' => 'front.jpg', 'i18n' => ['en_US' => ['source' => 'front-en.jpg']]]],
+        ], 'fr_FR', new ImportParameters(selectedLocales: ['fr_FR']));
+
+        self::assertSame(['fr_FR' => 'front.jpg', 'en_US' => 'front.jpg'], $line->images->value[0]->filesByLocale(['fr_FR', 'en_US']));
+    }
+
+    #[Test]
+    public function aDocumentKeepsOneFile(): void
+    {
+        $line = (new ProductLineFactory())->create([
+            'ref' => 'A',
+            'documents' => [['source' => 'manual.pdf', 'i18n' => ['fr_FR' => ['title' => 'Notice']]]],
+        ], 'fr_FR', new ImportParameters());
+
+        $document = $line->documents->value[0];
+
+        self::assertSame('manual.pdf', $document->identity);
+        self::assertSame([], $document->localeSources);
+    }
+
+    #[Test]
     public function aVideoKeepsItsVisibilityAndTextsButNotItsFormerGroup(): void
     {
         $line = (new ProductLineFactory())->create([

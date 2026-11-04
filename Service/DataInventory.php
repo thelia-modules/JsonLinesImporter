@@ -82,8 +82,17 @@ final readonly class DataInventory
     private static function hasLocalSource(mixed $medias): bool
     {
         foreach ((array) $medias as $media) {
-            if (\is_array($media) && isset($media['source']) && !MediaFetcher::isRemote((string) $media['source'])) {
-                return true;
+            if (!\is_array($media)) {
+                continue;
+            }
+
+            // The file of an image may come from an i18n block as well.
+            $sources = [$media['source'] ?? null, ...array_column(array_filter((array) ($media['i18n'] ?? []), 'is_array'), 'source')];
+
+            foreach ($sources as $source) {
+                if (null !== $source && !MediaFetcher::isRemote((string) $source)) {
+                    return true;
+                }
             }
         }
 

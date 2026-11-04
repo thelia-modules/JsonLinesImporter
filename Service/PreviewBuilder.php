@@ -167,7 +167,13 @@ final readonly class PreviewBuilder
 
         /** @var MediaLine $media */
         foreach ($field->value as $media) {
-            $groups[$group][] = $media->source;
+            if (null !== $media->source) {
+                $groups[$group][] = $media->source;
+            }
+
+            foreach ($media->localeSources as $locale => $source) {
+                $groups[$group][] = $locale.': '.$source;
+            }
         }
     }
 

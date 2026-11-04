@@ -12,14 +12,17 @@ use JsonLinesImporter\Dto\ProductLine;
 use JsonLinesImporter\Enum\MediaKind;
 use JsonLinesImporter\Enum\MediaType;
 use JsonLinesImporter\Exception\ImportException;
+use JsonLinesImporter\Model\JsonlImportMedia;
 use JsonLinesImporter\Service\LineReport;
 use JsonLinesImporter\Service\MediaFetcher;
 use JsonLinesImporter\Service\MediaProvenance;
+use JsonLinesImporter\Service\ShopContext;
 use Propel\Runtime\Connection\ConnectionInterface;
 use Thelia\Model\Product;
 use Thelia\Model\ProductDocument;
 use Thelia\Model\ProductDocumentQuery;
 use Thelia\Model\ProductImage;
+use Thelia\Model\ProductImageI18nQuery;
 use Thelia\Model\ProductImageQuery;
 
 /**
@@ -28,12 +31,17 @@ use Thelia\Model\ProductImageQuery;
  * Files are fetched before the transaction of the line (prepare), then attached inside it (write).
  * A known source is not fetched again: only its texts, visibility and position are updated. A file the
  * module imported is removed when it leaves the line; a file added by hand is never touched.
+ *
+ * The file of an image is translated (product_image_i18n.file): each language gets the file of its source,
+ * the root source for every active language, the source of an i18n block for its own. An image is matched
+ * by its identity source (MediaLine::$identity); every source it uses is remembered with the file it gave.
  */
 final readonly class MediaWriter
 {
     public function __construct(
         private MediaFetcher $fetcher,
         private MediaProvenance $provenance,
+        private ShopContext $shopContext,
     ) {
     }
 
@@ -51,20 +59,27 @@ final readonly class MediaWriter
 
             /** @var MediaLine $media */
             foreach ($field->value as $media) {
-                $hash = $type->value.':'.MediaProvenance::hash($media->source);
+                $object = null === $productId ? null : $this->existingObject($type, $productId, $media->identity);
+                $sources = $this->sourcesOf($type, $media, $object instanceof ProductImage ? $this->localesWithFileAddedByHand($object) : []);
 
-                if (isset($fetched[$hash])) {
+                if (null === $object && [] === $sources) {
+                    $report->warn(\sprintf('Media ignored: %s has no file in the selected languages', $media->identity));
+
                     continue;
                 }
 
-                if (null !== $productId && null !== $this->existingObject($type, $productId, $media->source)) {
-                    continue;
-                }
+                foreach ($sources as $source) {
+                    $hash = $type->value.':'.MediaProvenance::hash($source);
 
-                try {
-                    $fetched[$hash] = $this->fetcher->fetch($media->source, $kind, $directory);
-                } catch (ImportException $exception) {
-                    $report->warn('Media ignored: '.$exception->getMessage());
+                    if (isset($fetched[$hash]) || $this->isKnown($type, $object, $source)) {
+                        continue;
+                    }
+
+                    try {
+                        $fetched[$hash] = $this->fetcher->fetch($source, $kind, $directory);
+                    } catch (ImportException $exception) {
+                        $report->warn('Media ignored: '.$exception->getMessage());
+                    }
                 }
             }
         }
@@ -77,10 +92,10 @@ final readonly class MediaWriter
      *
      * @return array<string, int> image `_key` => product image id, for the variants
      */
-    public function write(Product $product, ProductLine $line, array $fetched, FileOperations $files, ConnectionInterface $con): array
+    public function write(Product $product, ProductLine $line, ImportParameters $parameters, array $fetched, FileOperations $files, ConnectionInterface $con): array
     {
-        $keys = $this->sync($product, $line->images, MediaType::PRODUCT_IMAGE, $fetched, $files, $con);
-        $this->sync($product, $line->documents, MediaType::PRODUCT_DOCUMENT, $fetched, $files, $con);
+        $keys = $this->sync($product, $line->images, MediaType::PRODUCT_IMAGE, $parameters, $fetched, $files, $con);
+        $this->sync($product, $line->documents, MediaType::PRODUCT_DOCUMENT, $parameters, $fetched, $files, $con);
 
         return $keys;
     }
@@ -90,44 +105,44 @@ final readonly class MediaWriter
      *
      * @return array<string, int>
      */
-    private function sync(Product $product, Field $field, MediaType $type, array $fetched, FileOperations $files, ConnectionInterface $con): array
+    private function sync(Product $product, Field $field, MediaType $type, ImportParameters $parameters, array $fetched, FileOperations $files, ConnectionInterface $con): array
     {
         if (!$field->present) {
             return [];
         }
 
         $productId = (int) $product->getId();
-        $keptHashes = [];
+        $keptIds = [];
         $keys = [];
 
         /** @var list<MediaLine> $medias */
         $medias = $field->value ?? [];
 
         foreach ($medias as $media) {
-            $hash = MediaProvenance::hash($media->source);
+            $object = $this->existingObject($type, $productId, $media->identity);
 
-            if (isset($fetched[$type->value.':'.$hash]) || null !== $this->existingObject($type, $productId, $media->source)) {
-                $keptHashes[$hash] = true;
+            if (null !== $object) {
+                $keptIds[(int) $object->getId()] = true;
             }
         }
 
         // Removed first: the core closes the gap a media leaves, which would shift the positions written below.
-        $this->removeMediaNotIn($type, $productId, $keptHashes, $files, $con);
+        $this->removeMediaNotIn($type, $productId, $keptIds, $files, $con);
 
         foreach ($medias as $index => $media) {
-            $hash = MediaProvenance::hash($media->source);
-            $object = $this->existingObject($type, $productId, $media->source);
+            $object = $this->existingObject($type, $productId, $media->identity);
             $isNew = null === $object;
 
-            if ($isNew) {
-                $file = $fetched[$type->value.':'.$hash] ?? null;
+            if ($isNew && !$this->hasFetchedFile($type, $media, $fetched)) {
+                continue;
+            }
 
-                if (null === $file) {
-                    continue;
-                }
+            $object ??= $this->createObject($type, $product, $con);
 
-                $object = $this->createObject($type, $product, $file, $files, $con);
-                $this->provenance->record($type, $productId, $media->source, (int) $object->getId());
+            if ($object instanceof ProductImage) {
+                $this->attachFiles($object, $media, $parameters, $fetched, $files, $con);
+            } elseif ($isNew) {
+                $this->attachDocumentFile($object, $media, $fetched, $files);
             }
 
             if ($media->visible->present || $isNew) {
@@ -161,41 +176,189 @@ final readonly class MediaWriter
         return $keys;
     }
 
-    /** @param array<string, true> $keptHashes */
-    private function removeMediaNotIn(MediaType $type, int $productId, array $keptHashes, FileOperations $files, ConnectionInterface $con): void
+    /** @param array<int, true> $keptIds */
+    private function removeMediaNotIn(MediaType $type, int $productId, array $keptIds, FileOperations $files, ConnectionInterface $con): void
     {
+        $removedIds = [];
+
         foreach ($this->provenance->findAll($type, $productId) as $record) {
-            if (isset($keptHashes[$record->getSourceHash()])) {
+            $objectId = (int) $record->getObjectId();
+
+            if (isset($keptIds[$objectId])) {
                 continue;
             }
 
-            $object = $this->findObject($type, (int) $record->getObjectId());
+            if (!isset($removedIds[$objectId])) {
+                $removedIds[$objectId] = true;
+                $object = $this->findObject($type, $objectId);
 
-            if (null !== $object && (int) $object->getProductId() === $productId) {
-                $files->deleteAfterCommit($object->getUploadDir().\DIRECTORY_SEPARATOR.$object->getFile(), $object instanceof ProductImage);
-                $object->delete($con);
+                if (null !== $object && (int) $object->getProductId() === $productId) {
+                    $storedFiles = $object instanceof ProductImage ? $object->getStoredFiles() : [$object->getFile()];
+
+                    foreach ($storedFiles as $storedFile) {
+                        $files->deleteAfterCommit($object->getUploadDir().\DIRECTORY_SEPARATOR.$storedFile, $object instanceof ProductImage);
+                    }
+
+                    $object->delete($con);
+                }
             }
 
             $record->delete($con);
         }
     }
 
-    private function createObject(MediaType $type, Product $product, FetchedFile $file, FileOperations $files, ConnectionInterface $con): ProductImage|ProductDocument
+    /**
+     * The row of a new media, saved to get the id its file names carry. The file of an image lives on its
+     * translations (attachFiles()); a document needs one on its row from the start.
+     */
+    private function createObject(MediaType $type, Product $product, ConnectionInterface $con): ProductImage|ProductDocument
     {
-        $object = MediaType::PRODUCT_IMAGE === $type ? new ProductImage() : new ProductDocument();
+        $object = MediaType::PRODUCT_IMAGE === $type
+            ? new ProductImage()
+            : (new ProductDocument())->setFile('importing');
 
         $object
             ->setProductId((int) $product->getId())
             ->setVisible(1)
-            ->setFile('importing')
             ->save($con);
 
-        $fileName = self::fileName($file, (int) $object->getId());
-        $files->place($file->temporaryPath, $object->getUploadDir().\DIRECTORY_SEPARATOR.$fileName);
-
-        $object->setFile($fileName);
-
         return $object;
+    }
+
+    /** @param array<string, FetchedFile> $fetched */
+    private function attachDocumentFile(ProductDocument $document, MediaLine $media, array $fetched, FileOperations $files): void
+    {
+        $source = (string) $media->source;
+        $file = $fetched[MediaType::PRODUCT_DOCUMENT->value.':'.MediaProvenance::hash($source)];
+        $fileName = self::fileName($file, (int) $document->getId());
+
+        $files->place($file->temporaryPath, $document->getUploadDir().\DIRECTORY_SEPARATOR.$fileName);
+        $document->setFile($fileName);
+
+        $this->provenance->record(MediaType::PRODUCT_DOCUMENT, (int) $document->getProductId(), $source, (int) $document->getId(), $fileName);
+    }
+
+    /**
+     * Gives each language of the image the file of its source, a source shared by several languages
+     * being stored once. A language holding a file added by hand keeps it. A language of the selection
+     * whose imported file no longer has a source is emptied: the core shows the file of the default
+     * language there. A file no language stores any more is removed once the line is committed.
+     *
+     * @param array<string, FetchedFile> $fetched
+     */
+    private function attachFiles(ProductImage $image, MediaLine $media, ImportParameters $parameters, array $fetched, FileOperations $files, ConnectionInterface $con): void
+    {
+        $type = MediaType::PRODUCT_IMAGE;
+        $productId = (int) $image->getProductId();
+        $imageId = (int) $image->getId();
+        $before = $image->getStoredFiles();
+        $records = $this->recordsOf($image);
+        $importedFiles = self::importedFiles($records);
+
+        /** @var array<string, string> $fileOfSource source hash => file name */
+        $fileOfSource = [];
+        $wanted = $media->filesByLocale($this->shopContext->activeLocales());
+
+        foreach ($wanted as $locale => $source) {
+            // A language out of the selection is left as it is, like the other fields of an i18n block.
+            if (!$parameters->isLocaleSelected($locale)) {
+                continue;
+            }
+
+            $hash = MediaProvenance::hash($source);
+            $image->setLocale($locale);
+            $ownFile = $image->getOwnFile();
+
+            // Checked before placing, so that no file is stored for nothing (prepare() does not fetch it either).
+            if (self::isAddedByHand($ownFile, $importedFiles)) {
+                continue;
+            }
+
+            if (!isset($fileOfSource[$hash])) {
+                $known = isset($records[$hash]) ? $records[$hash]->getFile() : null;
+                $file = $fetched[$type->value.':'.$hash] ?? null;
+
+                if (null !== $file) {
+                    $fileOfSource[$hash] = $this->placeImageFile($file, $image, $locale, $fileOfSource, $files);
+                } elseif (null !== $known && '' !== $known) {
+                    $fileOfSource[$hash] = $known;
+                } else {
+                    // Fetch failed, already reported: the language keeps the file it has.
+                    continue;
+                }
+
+                $this->provenance->record($type, $productId, $source, $imageId, $fileOfSource[$hash]);
+            }
+
+            $image->setLocale($locale);
+
+            if ($ownFile !== $fileOfSource[$hash]) {
+                $image->setFile($fileOfSource[$hash]);
+            }
+        }
+
+        foreach (ProductImageI18nQuery::create()->filterById($imageId)->find() as $translation) {
+            $locale = (string) $translation->getLocale();
+
+            if (isset($wanted[$locale]) || !$parameters->isLocaleSelected($locale)) {
+                continue;
+            }
+
+            $image->setLocale($locale);
+
+            if (\in_array($image->getOwnFile(), $importedFiles, true)) {
+                $image->setFile(null);
+            }
+        }
+
+        $after = $image->getStoredFiles();
+
+        foreach (array_diff($before, $after) as $removedFile) {
+            $files->deleteAfterCommit($image->getUploadDir().\DIRECTORY_SEPARATOR.$removedFile, true);
+        }
+
+        $identityHash = MediaProvenance::hash($media->identity);
+
+        foreach ($records as $hash => $record) {
+            if ($hash !== $identityHash && !isset($fileOfSource[$hash]) && !\in_array($record->getFile(), $after, true)) {
+                $record->delete($con);
+            }
+        }
+
+        // The identity matches the image at the next import, even when its language is not selected.
+        if (!isset($records[$identityHash]) && !isset($fileOfSource[$identityHash])) {
+            $this->provenance->record($type, $productId, $media->identity, $imageId);
+        }
+    }
+
+    /**
+     * Same naming as Thelia's FileManager (sanitized original name, then the id of the row), with the
+     * extension of the detected type. A name already stored, or given to another source of the image,
+     * takes the language then a counter, as FileManager::freeLocalizedFileName() does: a file is never
+     * written over, a rollback could not bring it back.
+     *
+     * @param array<string, string> $taken source hash => file name given in this line
+     */
+    private function placeImageFile(FetchedFile $file, ProductImage $image, string $locale, array $taken, FileOperations $files): string
+    {
+        $directory = $image->getUploadDir();
+        $isFree = static fn (string $name): bool => !\in_array($name, $taken, true) && !file_exists($directory.\DIRECTORY_SEPARATOR.$name);
+        $baseName = $file->baseName().'-'.(int) $image->getId();
+        $suffix = '.'.$file->extension();
+        $fileName = $baseName.$suffix;
+
+        if (!$isFree($fileName)) {
+            $baseName .= '-'.strtolower((string) preg_replace('/[^a-zA-Z0-9_]/', '', $locale));
+            $fileName = $baseName.$suffix;
+
+            for ($counter = 1; !$isFree($fileName); ++$counter) {
+                $fileName = $baseName.'-'.$counter.$suffix;
+            }
+        }
+
+        $files->place($file->temporaryPath, $directory.\DIRECTORY_SEPARATOR.$fileName);
+
+        return $fileName;
     }
 
     /**
@@ -205,6 +368,105 @@ final readonly class MediaWriter
     private static function fileName(FetchedFile $file, int $objectId): string
     {
         return $file->baseName().'-'.$objectId.'.'.$file->extension();
+    }
+
+    /**
+     * The sources whose file the line asks for: the file of every language of an image, the one of a document.
+     *
+     * @param array<string, true> $skippedLocales languages of an image whose file is not replaced
+     *
+     * @return list<string>
+     */
+    private function sourcesOf(MediaType $type, MediaLine $media, array $skippedLocales = []): array
+    {
+        if (MediaType::PRODUCT_IMAGE !== $type) {
+            return [(string) $media->source];
+        }
+
+        return array_values(array_unique(array_diff_key($media->filesByLocale($this->shopContext->activeLocales()), $skippedLocales)));
+    }
+
+    /**
+     * The languages of an image holding a file added by hand, which the import never replaces. Read from
+     * the translations, without changing the language of the model.
+     *
+     * @return array<string, true>
+     */
+    private function localesWithFileAddedByHand(ProductImage $image): array
+    {
+        $importedFiles = self::importedFiles($this->recordsOf($image));
+        $locales = [];
+
+        foreach (ProductImageI18nQuery::create()->filterById($image->getId())->find() as $translation) {
+            if (self::isAddedByHand($translation->getFile(), $importedFiles)) {
+                $locales[(string) $translation->getLocale()] = true;
+            }
+        }
+
+        return $locales;
+    }
+
+    /** @return array<string, JsonlImportMedia> source hash => provenance of the image */
+    private function recordsOf(ProductImage $image): array
+    {
+        $records = [];
+
+        foreach ($this->provenance->findAll(MediaType::PRODUCT_IMAGE, (int) $image->getProductId()) as $record) {
+            if ((int) $record->getObjectId() === (int) $image->getId()) {
+                $records[$record->getSourceHash()] = $record;
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, JsonlImportMedia> $records
+     *
+     * @return array<string, string> the files the module imported for the image
+     */
+    private static function importedFiles(array $records): array
+    {
+        return array_filter(array_map(static fn (JsonlImportMedia $record): ?string => $record->getFile(), $records));
+    }
+
+    /** @param array<string, string> $importedFiles */
+    private static function isAddedByHand(?string $file, array $importedFiles): bool
+    {
+        return null !== $file && '' !== $file && !\in_array($file, $importedFiles, true);
+    }
+
+    /**
+     * Whether the file of a source is already stored by the media: a document is matched by its only
+     * source, an image remembers the file each of its sources gave.
+     */
+    private function isKnown(MediaType $type, ProductImage|ProductDocument|null $object, string $source): bool
+    {
+        if (null === $object) {
+            return false;
+        }
+
+        if (!$object instanceof ProductImage) {
+            return true;
+        }
+
+        $record = $this->provenance->find($type, (int) $object->getProductId(), $source);
+
+        return null !== $record
+            && (int) $record->getObjectId() === (int) $object->getId()
+            && null !== $record->getFile() && '' !== $record->getFile();
+    }
+
+    /** @param array<string, FetchedFile> $fetched */
+    private function hasFetchedFile(MediaType $type, MediaLine $media, array $fetched): bool
+    {
+        foreach ($this->sourcesOf($type, $media) as $source) {
+            if (isset($fetched[$type->value.':'.MediaProvenance::hash($source)])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function existingObject(MediaType $type, int $productId, string $source): ProductImage|ProductDocument|null

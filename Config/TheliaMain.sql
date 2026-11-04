@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS `jsonl_import_media`
     `object_id` INTEGER NOT NULL,
     `source` TEXT NOT NULL,
     `source_hash` CHAR(40) NOT NULL,
+    `file` VARCHAR(255),
     `created_at` DATETIME,
     `updated_at` DATETIME,
     PRIMARY KEY (`id`),

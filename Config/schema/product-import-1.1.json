@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:thelia:json-lines-importer:product-import:1.0",
+  "$id": "urn:thelia:json-lines-importer:product-import:1.1",
   "title": "Product object of a line of a Thelia JSON Lines import",
   "description": "One line of the file is one product object. Prices exclude taxes. Collections: an array replaces the whole collection, null empties it, an absent key leaves it unchanged.",
   "type": "object",
@@ -127,17 +127,21 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source"],
+        "description": "A source at the root, in an i18n block, or both. The root source is the image of every active language of the shop; the source of an i18n block wins over it for its language. The root source, else the first source of the i18n blocks, identifies the image from one import to the next.",
+        "anyOf": [
+          { "required": ["source"] },
+          { "required": ["i18n"], "properties": { "i18n": { "not": { "additionalProperties": { "not": { "required": ["source"] } } } } } }
+        ],
         "properties": {
           "_key": { "type": "string", "minLength": 1, "description": "Technical key, referenced by variants[].images." },
-          "source": { "$ref": "#/$defs/source" },
+          "source": { "$ref": "#/$defs/source", "description": "URL or path of the file, for every active language of the shop." },
           "visible": { "type": "boolean", "default": true },
           "position": { "type": ["integer", "null"] },
           "title": { "$ref": "#/$defs/nullableString" },
           "chapo": { "$ref": "#/$defs/nullableString" },
           "description": { "$ref": "#/$defs/nullableString" },
           "postscriptum": { "$ref": "#/$defs/nullableString" },
-          "i18n": { "$ref": "#/$defs/mediaI18n" }
+          "i18n": { "$ref": "#/$defs/imageI18n" }
         }
       }
     },
@@ -248,6 +252,24 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "title": { "$ref": "#/$defs/nullableString" },
+            "chapo": { "$ref": "#/$defs/nullableString" },
+            "description": { "$ref": "#/$defs/nullableString" },
+            "postscriptum": { "$ref": "#/$defs/nullableString" }
+          }
+        }
+      }
+    },
+
+    "imageI18n": {
+      "$ref": "#/$defs/i18nBlock",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z]{2}_[A-Z]{2}$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source": { "$ref": "#/$defs/source", "description": "URL or path of the file of this language; wins over the root source." },
             "title": { "$ref": "#/$defs/nullableString" },
             "chapo": { "$ref": "#/$defs/nullableString" },
             "description": { "$ref": "#/$defs/nullableString" },

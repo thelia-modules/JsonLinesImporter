@@ -86,7 +86,7 @@ final readonly class ProductWriter
 
             $this->writeProduct($product, $line, $isCreation, $report, $con);
 
-            $imageKeys = $this->mediaWriter->write($product, $line, $fetched, $files, $con);
+            $imageKeys = $this->mediaWriter->write($product, $line, $parameters, $fetched, $files, $con);
             $this->saleElementWriter->write($product, $line, $isCreation, $imageKeys, $report, $con);
 
             if (!$isCreation) {
@@ -304,13 +304,7 @@ final readonly class ProductWriter
     {
         $medias = fn (Field $field): Field => $field->hasValue()
             ? Field::of(array_map(
-                fn (MediaLine $media): MediaLine => new MediaLine(
-                    $media->key,
-                    $media->source,
-                    $media->visible,
-                    $media->position,
-                    $this->htmlSanitizer->sanitize($media->i18n, $report, $media->source),
-                ),
+                fn (MediaLine $media): MediaLine => $media->withI18n($this->htmlSanitizer->sanitize($media->i18n, $report, $media->identity)),
                 $field->value,
             ))
             : $field;
